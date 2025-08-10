@@ -78,17 +78,36 @@ router.get('/providers', auth, async (req, res) => {
     // Find all users and return necessary fields
     const users = await User.find(query)
       .select('name email skillsOffered skillsLearning rating reviewsCount')
-      .limit(50) 
       .sort({ createdAt: -1 });
       
     res.set('Cache-Control', 'no-store');
       
     console.log(`Found ${users.length} users`);
-    console.log('Backend version: SHOW_ALL_USERS_V2');
+    console.log('Backend version: SHOW_ALL_USERS_V3');
       
     res.json(users);
   } catch (error) {
     console.error('Error in /providers endpoint:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin: Get all users (unlimited)
+router.get('/users/admin/all', auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const users = await User.find({})
+      .select('name email skillsOffered skillsLearning rating reviewsCount createdAt')
+      .sort({ createdAt: -1 });
+    
+    res.set('Cache-Control', 'no-store');
+    res.json(users);
+  } catch (error) {
+    console.error('Error in /admin/all endpoint:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
@@ -114,6 +133,123 @@ router.get('/debug/users-with-skills', auth, async (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ message: 'Debug error', error: error.message });
+  }
+});
+
+// Admin: Get comprehensive statistics
+router.get('/users/admin/stats', auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    // Get real statistics from database
+    const totalUsers = await User.countDocuments();
+    const usersWithSkills = await User.countDocuments({
+      skillsOffered: { $exists: true, $not: { $size: 0 } }
+    });
+    const recentUsers = await User.countDocuments({
+      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Last 7 days
+    });
+    
+    // TODO: Add session stats when session routes are connected
+    const totalSessions = 0; // Will be implemented when sessions endpoint is ready
+    const activeSessions = 0;
+    const completedSessions = 0;
+    
+    const stats = {
+      totalUsers,
+      totalSessions,
+      activeUsers: usersWithSkills, // Users with skills are considered active
+      completedSessions,
+      pendingSessions: activeSessions,
+      recentRegistrations: recentUsers
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting admin stats:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin: Delete user
+router.delete('/users/admin/:userId', auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const { userId } = req.params;
+    
+    // Don't allow admin to delete themselves
+    if (userId === req.user._id.toString()) {
+      return res.status(400).json({ message: 'Cannot delete your own account' });
+    }
+
+    const deletedUser = await User.findByIdAndDelete(userId);
+    if (!deletedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ message: 'User deleted successfully', deletedUser: { name: deletedUser.name, email: deletedUser.email } });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin: Update user
+router.put('/admin/:userId', auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const { userId } = req.params;
+    const updates = req.body;
+
+    // Remove sensitive fields from updates
+    delete updates.password;
+    delete updates._id;
+    delete updates.__v;
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updates,
+      { new: true, runValidators: true }
+    ).select('name email skillsOffered skillsLearning rating reviewsCount createdAt');
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json({ message: 'User updated successfully', user: updatedUser });
+  } catch (error) {
+    console.error('Error updating user:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Admin: Get all users (for admin panel)
+router.get('/admin/all', auth, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const users = await User.find()
+      .select('name email skillsOffered skillsLearning rating reviewsCount createdAt authProvider')
+      .sort({ createdAt: -1 });
+
+    res.json(users);
+  } catch (error) {
+    console.error('Error getting all users:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 

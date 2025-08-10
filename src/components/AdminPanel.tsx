@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Activity, Settings, BarChart3, UserPlus, MessageSquare, Clock, Shield, Edit, Trash2, Search, Filter, Download, RefreshCw, Database, AlertTriangle } from 'lucide-react';
+import { Users, Activity, Settings, BarChart3, UserPlus, MessageSquare, Clock, Shield, Edit, Trash2, Search, Filter, Download, RefreshCw, Database, AlertTriangle, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import { API_URL } from '../config/api';
+import toast from 'react-hot-toast';
 
 interface AdminStats {
   totalUsers: number;
@@ -56,57 +57,122 @@ export default function AdminPanel() {
     setLoading(false);
   };
 
+  // Delete user function
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(`Are you sure you want to delete user "${userName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      await axios.delete(`${API_URL}/users/admin/${userId}`, { headers });
+      
+      // Remove user from local state
+      setUsers(users.filter(u => u._id !== userId));
+      setSelectedUsers(selectedUsers.filter(id => id !== userId));
+      
+      // Update stats
+      if (stats) {
+        setStats({
+          ...stats,
+          totalUsers: stats.totalUsers - 1
+        });
+      }
+      
+      toast.success(`User "${userName}" deleted successfully`);
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      if (error.response?.status === 404) {
+        toast.error('⚠️ Delete functionality requires backend deployment. Admin endpoints not available yet.');
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to delete user');
+      }
+    }
+  };
+
+  // Update user function
+  const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      const response = await axios.put(`${API_URL}/users/admin/${userId}`, updates, { headers });
+      
+      // Update user in local state
+      setUsers(users.map(u => u._id === userId ? response.data.user : u));
+      
+      toast.success('User updated successfully');
+      setShowUserModal(false);
+      setSelectedUser(null);
+    } catch (error: any) {
+      console.error('Error updating user:', error);
+      toast.error(error.response?.data?.message || 'Failed to update user');
+    }
+  };
+
   const loadAdminData = async () => {
     setDataLoading(true);
     setError(null);
     console.log('Loading admin data...');
-    console.log('API_URL:', API_URL);
-    console.log('Token:', localStorage.getItem('token') ? 'Present' : 'Missing');
     
     try {
-      // Try to load users from the providers endpoint
-      console.log('Fetching users from providers endpoint...');
-      const allUsersResponse = await axios.get(`${API_URL}/users/providers`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      
-      console.log('Users response:', allUsersResponse.data);
-      const usersData = Array.isArray(allUsersResponse.data) ? allUsersResponse.data : [];
-      setUsers(usersData);
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
 
-      // Try to get debug info (optional)
-      let debugData = null;
+      // Try new admin endpoints first, fallback to existing endpoints
+      let statsData = null;
+      let usersData = [];
+
       try {
-        console.log('Fetching debug info...');
-        const debugResponse = await axios.get(`${API_URL}/users/debug/users-with-skills`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        debugData = debugResponse.data;
-        console.log('Debug data:', debugData);
-      } catch (debugError) {
-        console.log('Debug endpoint not available:', debugError.response?.status);
+        console.log('Trying admin stats endpoint...');
+        const statsResponse = await axios.get(`${API_URL}/users/admin/stats`, { headers });
+        statsData = statsResponse.data;
+        console.log('Admin stats loaded:', statsData);
+      } catch (statsError) {
+        console.log('Admin stats endpoint not available, calculating from user data');
+        // We'll calculate stats after loading users
       }
 
-      // Calculate stats from actual data
-      const totalUsers = debugData?.totalUsers || usersData.length || 0;
-      const activeUsers = Math.floor(totalUsers * 0.7);
-      const recentRegistrations = Math.floor(totalUsers * 0.3);
-      
-      const calculatedStats: AdminStats = {
-        totalUsers: totalUsers,
-        totalSessions: 0, // Will add session endpoint later
-        activeUsers: activeUsers,
-        completedSessions: 0,
-        pendingSessions: 0,
-        recentRegistrations: recentRegistrations
-      };
+      try {
+        console.log('Trying admin users endpoint...');
+        const usersResponse = await axios.get(`${API_URL}/users/admin/all`, { headers });
+        usersData = Array.isArray(usersResponse.data) ? usersResponse.data : [];
+        console.log('Admin users loaded:', usersData.length);
+      } catch (usersError) {
+        console.log('Admin users endpoint not available, using providers endpoint');
+        // Fallback to existing endpoint
+        const providersResponse = await axios.get(`${API_URL}/users/providers`, { headers });
+        usersData = Array.isArray(providersResponse.data) ? providersResponse.data : [];
+        console.log('Providers users loaded:', usersData.length);
+      }
 
-      console.log('Calculated stats:', calculatedStats);
-      setStats(calculatedStats);
+      // Set users data
+      setUsers(usersData);
+
+      // Calculate stats if not available from admin endpoint
+      if (!statsData) {
+        const totalUsers = usersData.length;
+        const usersWithSkills = usersData.filter(u => u.skillsOffered && u.skillsOffered.length > 0).length;
+        const recentUsers = usersData.filter(u => {
+          const weekAgo = new Date();
+          weekAgo.setDate(weekAgo.getDate() - 7);
+          return u.createdAt && new Date(u.createdAt) > weekAgo;
+        }).length;
+
+        statsData = {
+          totalUsers,
+          totalSessions: 0, // Will be implemented when sessions endpoint is ready
+          activeUsers: usersWithSkills,
+          completedSessions: 0,
+          pendingSessions: 0,
+          recentRegistrations: recentUsers
+        };
+        console.log('Calculated stats:', statsData);
+      }
+
+      setStats(statsData);
       
     } catch (error) {
       console.error('Error loading admin data:', error);
@@ -546,8 +612,9 @@ export default function AdminPanel() {
                                 <Edit className="h-4 w-4" />
                               </button>
                               <button
-                                onClick={() => {}}
+                                onClick={() => handleDeleteUser(user._id, user.name)}
                                 className="text-red-600 hover:text-red-900"
+                                title={`Delete ${user.name}`}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>

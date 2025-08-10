@@ -1,0 +1,105 @@
+name: Dependency Updates
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: Update client dependencies
+      run: |
+        npm update
+        npm audit fix --audit-level moderate
+
+    - name: Update server dependencies
+      run: |
+        cd server
+        npm update
+        npm audit fix --audit-level moderate
+
+    - name: Run tests after updates
+      run: |
+        npm run lint
+        npm run build
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: 'chore: update dependencies'
+        title: 'Automated Dependency Updates'
+        body: |
+          🤖 This PR contains automated dependency updates.
+          
+          ## Changes
+          - Updated npm packages to latest compatible versions
+          - Fixed security vulnerabilities (if any)
+          
+          ## Testing
+          - ✅ Linting passed
+          - ✅ Build completed successfully
+          
+          Please review and merge if all checks pass.
+        branch: automated-dependency-updates
+        delete-branch: true
+
+  security-audit:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+        cd server && npm ci
+
+    - name: Run security audit (client)
+      run: npm audit --audit-level high
+
+    - name: Run security audit (server)
+      run: |
+        cd server
+        npm audit --audit-level high
+
+    - name: Create security issue if vulnerabilities found
+      if: failure()
+      uses: actions/github-script@v7
+      with:
+        script: |
+          github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: '🚨 Security Vulnerabilities Detected',
+            body: `Security vulnerabilities have been detected in the dependencies.
+            
+            Please check the [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId}) for details.
+            
+            Run \`npm audit\` locally to see the full report and fix the issues.`,
+            labels: ['security', 'dependencies', 'high-priority']
+          })

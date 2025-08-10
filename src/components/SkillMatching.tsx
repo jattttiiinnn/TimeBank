@@ -38,9 +38,9 @@ export default function SkillMatching() {
       
       console.log('Matches response:', response.data);
       setMatchedUsers(response.data);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error fetching matches:', error);
-      if (error.response) {
+      if (axios.isAxiosError(error) && error.response) {
         console.error('Response status:', error.response.status);
         console.error('Response data:', error.response.data);
       }
@@ -57,7 +57,7 @@ export default function SkillMatching() {
 
   const startChat = async (userId: string) => {
     try {
-      const response = await axios.post(`${API_URL}/chat/create`, {
+      await axios.post(`${API_URL}/chat/create`, {
         participantId: userId
       });
       // You could navigate to chat here or show a success message

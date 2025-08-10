@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Box, Tabs, Tab, CircularProgress, Typography, useTheme } from '@mui/material';
 import { useAuth } from '../../contexts/AuthContext';
-import { isAdmin } from '../../config/firebase';
+import { isAdmin } from '../../firebase';
 import MainLayout from '../components/Layout/MainLayout';
 import UsersTab from '../components/admin/UsersTab';
 import SessionsTab from '../components/admin/SessionsTab';

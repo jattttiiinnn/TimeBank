@@ -1,0 +1,59 @@
+name: Auto Merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+  check_suite:
+    types: [completed]
+  status: {}
+
+jobs:
+  auto-merge:
+    name: Auto Merge Dependencies
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == 'dependabot[bot]' || 
+      (github.actor == 'github-actions[bot]' && contains(github.head_ref, 'automated-dependency-updates'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Wait for CI checks
+      uses: lewagon/wait-on-check-action@v1.3.1
+      with:
+        ref: ${{ github.head_ref }}
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        wait-interval: 10
+        running-workflow-name: 'Auto Merge Dependencies'
+
+    - name: Auto-merge PR
+      uses: pascalgn/merge-action@v0.15.6
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        merge_method: squash
+        merge_commit_message: |
+          {title} ({pull_number})
+          
+          Auto-merged dependency update PR.
+
+  auto-approve:
+    name: Auto Approve Dependencies
+    runs-on: ubuntu-latest
+    if: |
+      github.actor == 'dependabot[bot]' || 
+      (github.actor == 'github-actions[bot]' && contains(github.head_ref, 'automated-dependency-updates'))
+    
+    steps:
+    - name: Auto approve
+      uses: hmarr/auto-approve-action@v3
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        review-message: |
+          🤖 Auto-approving this automated dependency update.
+          
+          All CI checks must pass before this can be merged.
