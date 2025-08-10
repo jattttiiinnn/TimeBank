@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Users, Link as LinkIcon } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 interface Provider {
   _id: string;
@@ -34,7 +35,7 @@ export default function CreateSession({ onSessionCreated }: CreateSessionProps) 
 
   const fetchProviders = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/users/providers');
+      const response = await axios.get(`${API_URL}/users/providers`);
       setProviders(response.data);
     } catch (error) {
       console.error('Error fetching providers:', error);
@@ -48,7 +49,7 @@ export default function CreateSession({ onSessionCreated }: CreateSessionProps) 
     setLoading(true);
 
     try {
-      await axios.post('http://localhost:5000/api/sessions/create', formData);
+      await axios.post(`${API_URL}/sessions/create`, formData);
       setSuccess('Session created successfully!');
       setFormData({
         skillName: '',

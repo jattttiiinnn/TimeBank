@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Search, MessageCircle, Star, Video } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 interface MatchedUser {
   _id: string;
   name: string;
   email: string;
-  skillsOffered: Array<{ name: string; description: string; sessionsCompleted: number }>;
+  skillsOffered?: Array<{ name: string; description: string; sessionsCompleted: number }>;
+  skillsLearning?: Array<{ name: string; description: string; sessionsCompleted: number }>;
   rating: number;
   reviewsCount: number;
 }
@@ -25,10 +27,25 @@ export default function SkillMatching() {
   const fetchMatches = async (skill?: string) => {
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/users/providers${skill ? `?skill=${skill}` : ''}`);
+      const url = `${API_URL}/users/providers${skill ? `?skill=${encodeURIComponent(skill)}` : ''}`;
+      console.log('Fetching matches from:', url);
+      
+      const response = await axios.get(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      console.log('Matches response:', response.data);
       setMatchedUsers(response.data);
     } catch (error) {
       console.error('Error fetching matches:', error);
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', error.response.data);
+      }
+      // Set empty array on error to show "no matches" message
+      setMatchedUsers([]);
     }
     setLoading(false);
   };
@@ -40,7 +57,7 @@ export default function SkillMatching() {
 
   const startChat = async (userId: string) => {
     try {
-      const response = await axios.post('http://localhost:5000/api/chat/create', {
+      const response = await axios.post(`${API_URL}/chat/create`, {
         participantId: userId
       });
       // You could navigate to chat here or show a success message
@@ -85,6 +102,16 @@ export default function SkillMatching() {
             >
               Search
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                fetchMatches();
+              }}
+              className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-all duration-300"
+            >
+              Show All
+            </button>
           </div>
         </form>
 
@@ -118,7 +145,7 @@ export default function SkillMatching() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {matchedUsers.map((matchedUser) => {
-              const skillMatches = getSkillMatches(matchedUser.skillsOffered);
+              const skillMatches = getSkillMatches(matchedUser.skillsOffered || []);
               
               return (
                 <div key={matchedUser._id} className="bg-white rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow">
@@ -137,19 +164,25 @@ export default function SkillMatching() {
                   <div className="mb-4">
                     <h4 className="text-sm font-medium text-gray-700 mb-2">Skills Offered:</h4>
                     <div className="space-y-2">
-                      {matchedUser.skillsOffered.map((skill, index) => (
-                        <div 
-                          key={index} 
-                          className={`p-2 rounded-lg text-sm ${
-                            skillMatches.some(match => match.name === skill.name)
-                              ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 border border-purple-200'
-                              : 'bg-gray-100 text-gray-700'
-                          }`}
-                        >
-                          <div className="font-medium">{skill.name}</div>
-                          <div className="text-xs opacity-75">{skill.sessionsCompleted} sessions completed</div>
+                      {matchedUser.skillsOffered && matchedUser.skillsOffered.length > 0 ? (
+                        matchedUser.skillsOffered.map((skill, index) => (
+                          <div 
+                            key={index} 
+                            className={`p-2 rounded-lg text-sm ${
+                              skillMatches.some(match => match.name === skill.name)
+                                ? 'bg-gradient-to-r from-purple-100 to-blue-100 text-purple-700 border border-purple-200'
+                                : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            <div className="font-medium">{skill.name}</div>
+                            <div className="text-xs opacity-75">{skill.sessionsCompleted} sessions completed</div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="p-2 rounded-lg text-sm bg-gray-50 text-gray-500 text-center">
+                          No skills added yet
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
 
@@ -190,7 +223,11 @@ export default function SkillMatching() {
         {!loading && matchedUsers.length === 0 && (
           <div className="text-center py-8">
             <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">No matches found. Try searching for different skills or set up your profile first.</p>
+            <p className="text-gray-500">
+              {searchTerm 
+                ? 'No users found with that skill. Try a different search term or click "Show All" to see everyone.' 
+                : 'No users found. This might be a temporary issue - please try again.'}
+            </p>
           </div>
         )}
       </div>

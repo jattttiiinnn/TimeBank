@@ -4,7 +4,9 @@ import { useAuth } from '../context/AuthContext';
 import ChatWindow from './ChatWindow';
 import { Chat, Message } from '../types/chat';
 import axios from 'axios';
-import io from 'socket.io-client';
+//import io from 'socket.io-client';
+import { API_URL } from '../config/api';
+import { io, Socket } from 'socket.io-client';
 
 export default function ChatList() {
   const { user } = useAuth();
@@ -18,7 +20,7 @@ export default function ChatList() {
     fetchChats();
     
     // Setup socket for notifications
-    const socket = io('http://localhost:5000');
+    const socket: Socket = io(import.meta.env.VITE_API_URL);
     
     socket.on('new-message', (newMessage: any) => {
       // Only show notification if chat is not currently selected
@@ -64,7 +66,7 @@ export default function ChatList() {
 
   const fetchChats = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/chat/my');
+      const response = await axios.get(`${API_URL}/chat/my`);
       setChats(response.data);
     } catch (error) {
       console.error('Error fetching chats:', error);

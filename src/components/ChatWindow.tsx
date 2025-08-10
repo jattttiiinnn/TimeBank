@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Video, Phone, MoreVertical, X } from 'lucide-react';
-import VideoCall from './VideoCall';
-import io from 'socket.io-client';
+import { Send, Video, MoreVertical, X, Phone, MessageSquare } from 'lucide-react';
+import toast from 'react-hot-toast';
+import VideoCall from './EnhancedVideoCall';
+import { io } from 'socket.io-client';
 
 interface Message {
   _id: string;
@@ -21,10 +22,10 @@ interface Chat {
 interface ChatWindowProps {
   chat: Chat;
   currentUserId?: string;
-  onChatUpdate: () => void;
+  // onChatUpdate: () => void; // Removed unused prop
 }
 
-export default function ChatWindow({ chat, currentUserId, onChatUpdate }: ChatWindowProps) {
+export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>(chat.messages);
   const [showVideoCall, setShowVideoCall] = useState(false);
@@ -41,7 +42,7 @@ export default function ChatWindow({ chat, currentUserId, onChatUpdate }: ChatWi
     console.log('ChatWindow: Initializing socket for chat:', chat._id);
     
     // Create socket connection with reconnection options
-    const newSocket = io('http://localhost:5000', {
+    const newSocket = io(import.meta.env.VITE_API_URL, {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
@@ -89,6 +90,30 @@ export default function ChatWindow({ chat, currentUserId, onChatUpdate }: ChatWi
     const onNewMessage = (newMessage: Message) => {
       console.log('ChatWindow: Received new message:', newMessage);
       setMessages(prev => [...prev, newMessage]);
+      
+      // Show notification for messages from other users
+      if (newMessage.senderId._id !== currentUserId) {
+        toast(
+          (t) => (
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                {newMessage.senderId.name.charAt(0)}
+              </div>
+              <div>
+                <p className="font-medium text-gray-800">{newMessage.senderId.name}</p>
+                <p className="text-sm text-gray-600">{newMessage.content}</p>
+              </div>
+              <button onClick={() => toast.dismiss(t.id)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ),
+          {
+            duration: 4000,
+            icon: <MessageSquare className="w-5 h-5" />,
+          }
+        );
+      }
     };
 
     // Video call handling
@@ -99,6 +124,28 @@ export default function ChatWindow({ chat, currentUserId, onChatUpdate }: ChatWi
         console.log('ChatWindow: Showing incoming call modal');
         setIncomingCall(true);
         setCallInitiator(data.from);
+        
+        // Show incoming call notification
+        toast(
+          (t) => (
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center animate-pulse">
+                <Phone className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-800">📞 Incoming Video Call</p>
+                <p className="text-sm text-gray-600">{otherParticipant?.name} is calling you</p>
+              </div>
+              <button onClick={() => toast.dismiss(t.id)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ),
+          {
+            duration: 10000,
+            icon: <Video className="w-5 h-5" />,
+          }
+        );
       } else {
         console.log('ChatWindow: Ignoring call from self');
       }
@@ -106,18 +153,29 @@ export default function ChatWindow({ chat, currentUserId, onChatUpdate }: ChatWi
 
     const onCallAccepted = () => {
       console.log('ChatWindow: Call accepted, starting video call');
+      toast.success(`📹 Call connected with ${otherParticipant?.name}`, {
+        duration: 3000,
+        icon: '✅',
+      });
       setShowVideoCall(true);
       setIncomingCall(false);
     };
 
     const onCallRejected = () => {
       console.log('ChatWindow: Call rejected');
+      toast.error(`📞 Call declined by ${otherParticipant?.name}`, {
+        duration: 3000,
+        icon: '❌',
+      });
       setIncomingCall(false);
-      alert('Call was rejected');
     };
 
     const onCallEnded = () => {
       console.log('ChatWindow: Call ended');
+      toast.success('📞 Call ended', {
+        duration: 2000,
+        icon: '📴',
+      });
       setShowVideoCall(false);
       setIncomingCall(false);
     };

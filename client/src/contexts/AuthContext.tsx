@@ -1,19 +1,22 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User } from 'firebase/auth';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { User, getIdTokenResult } from 'firebase/auth';
 import { auth, signInWithGoogle, signOut } from '../config/firebase';
-
 interface AuthContextType {
   currentUser: User | null;
   loading: boolean;
+  isAdmin: boolean;
   signIn: () => Promise<{ user: User | null; error: any }>;
   signOut: () => Promise<{ error: any }>;
+  checkAdminStatus: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   currentUser: null,
   loading: true,
+  isAdmin: false,
   signIn: async () => ({ user: null, error: null }),
   signOut: async () => ({ error: null }),
+  checkAdminStatus: async () => false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -21,18 +24,42 @@ export const useAuth = () => useContext(AuthContext);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if user is admin
+  const checkAdminStatus = useCallback(async (user: User | null): Promise<boolean> => {
+    if (!user) {
+      setIsAdmin(false);
+      return false;
+    }
+
+    try {
+      const idTokenResult = await getIdTokenResult(user, true);
+      const isAdmin = !!idTokenResult.claims.admin;
+      setIsAdmin(isAdmin);
+      return isAdmin;
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+      return false;
+    }
+  }, []);
 
   // Handle auth state changes
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
-      setLoading(false);
       
-      // If user is logged in, you can also sync with your backend here
       if (user) {
+        // Check admin status when user logs in
+        await checkAdminStatus(user);
         // Optionally sync user data with your backend
         syncUserWithBackend(user);
+      } else {
+        setIsAdmin(false);
       }
+      
+      setLoading(false);
     });
 
     return () => unsubscribe();
@@ -54,6 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       const { error } = await signOut();
+      setIsAdmin(false); // Reset admin status on sign out
       return { error };
     } finally {
       setLoading(false);
@@ -83,15 +111,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const value = {
-    currentUser,
-    loading,
-    signIn: handleSignIn,
-    signOut: handleSignOut,
-  };
-
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{
+      currentUser,
+      loading,
+      isAdmin,
+      signIn: handleSignIn,
+      signOut: handleSignOut,
+      checkAdminStatus: () => checkAdminStatus(currentUser),
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );

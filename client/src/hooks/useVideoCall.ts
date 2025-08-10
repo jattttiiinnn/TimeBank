@@ -18,51 +18,120 @@ const useVideoCall = (roomId: string, userId: string) => {
   const userVideoRef = useRef<HTMLVideoElement>(null);
   const peersRef = useRef<{ userId: string; socketId: string }[]>([]);
 
+  // Get current user's ID token for authentication
+  const getAuthToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const currentUser = (window as any).firebase.auth().currentUser;
+      if (!currentUser) return null;
+      return await currentUser.getIdToken(true);
+    } catch (error) {
+      console.error('Error getting auth token:', error);
+      return null;
+    }
+  }, []);
+
   // Initialize socket connection
   useEffect(() => {
-    // Get the base URL from environment variables
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    
-    // Create socket URL - remove '/api' if present and ensure proper WebSocket protocol
-    const socketUrl = new URL(apiUrl);
-    socketUrl.pathname = socketUrl.pathname.replace(/\/api$/, '');
-    
-    // Ensure WebSocket protocol is used
-    const protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${socketUrl.host}${socketUrl.pathname}`;
-    
-    console.log('Connecting to WebSocket:', wsUrl);
-    
-    const socket = io(wsUrl, {
-      withCredentials: true,
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-    
-    socketRef.current = socket;
+    let socket: Socket;
+    let authCheckInterval: NodeJS.Timeout;
 
-    // Log connection events for debugging
-    socket.on('connect', () => {
-      console.log('Socket connected:', socket.id);
-    });
-    
-    socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason);
-    });
-    
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
+    const initializeSocket = async () => {
+      // Get the base URL from environment variables
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      
+      // Create socket URL - remove '/api' if present and ensure proper WebSocket protocol
+      const socketUrl = new URL(apiUrl);
+      socketUrl.pathname = socketUrl.pathname.replace(/\/api$/, '');
+      
+      // Ensure WebSocket protocol is used
+      const protocol = socketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${socketUrl.host}${socketUrl.pathname}`;
+      
+      console.log('Connecting to WebSocket:', wsUrl);
+      
+      // Get auth token
+      const token = await getAuthToken();
+      if (!token) {
+        setError('Authentication required. Please sign in again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Configure socket with auth token
+      socket = io(wsUrl, {
+        path: '/socket.io/', // Must match server path
+        withCredentials: true,
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        auth: { token },
+        query: { userId }
+      });
+      
+      socketRef.current = socket;
+
+      // Log connection events for debugging
+      socket.on('connect', () => {
+        console.log('Socket connected:', socket.id);
+        setError(null);
+      });
+      
+      socket.on('disconnect', (reason) => {
+        console.log('Socket disconnected:', reason);
+        if (reason === 'io server disconnect') {
+          // The disconnection was initiated by the server, need to manually reconnect
+          setTimeout(() => {
+            socket.connect();
+          }, 1000);
+        }
+      });
+      
+      socket.on('connect_error', async (error) => {
+        console.error('Socket connection error:', error);
+        
+        // If unauthorized, try to refresh the token
+        if (error.message === 'Authentication error: Invalid token') {
+          const newToken = await getAuthToken();
+          if (newToken) {
+            socket.auth = { token: newToken };
+            socket.connect();
+          } else {
+            setError('Session expired. Please sign in again.');
+          }
+        } else {
+          setError('Connection error. Trying to reconnect...');
+        }
+      });
+
+      // Periodically check authentication status
+      authCheckInterval = setInterval(async () => {
+        if (!socket.connected) return;
+        
+        const token = await getAuthToken();
+        if (!token) {
+          setError('Session expired. Please sign in again.');
+          socket.disconnect();
+          return;
+        }
+        
+        // Update token if it's about to expire (optional)
+        socket.emit('auth:refresh', { token });
+      }, 5 * 60 * 1000); // Check every 5 minutes
+    };
+
+    initializeSocket();
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('connect_error');
-      socket.disconnect();
+      if (socket) {
+        clearInterval(authCheckInterval);
+        socket.off('connect');
+        socket.off('disconnect');
+        socket.off('connect_error');
+        socket.disconnect();
+      }
     };
-  }, []);
+  }, [userId, getAuthToken]);
 
   // Get user media
   const getLocalStream = useCallback(async () => {

@@ -30,6 +30,12 @@ export interface IUser extends Document {
     isPhoneVerified: boolean;
     verificationToken?: string;
     verificationTokenExpires?: Date;
+    emailOTP?: string;
+    emailOTPExpires?: Date;
+  };
+  passwordReset?: {
+    token?: string;
+    expires?: Date;
   };
   settings: {
     notifications: {
@@ -131,7 +137,13 @@ const userSchema = new Schema<IUser>(
         default: false 
       },
       verificationToken: String,
-      verificationTokenExpires: Date
+      verificationTokenExpires: Date,
+      emailOTP: String,
+      emailOTPExpires: Date
+    },
+    passwordReset: {
+      token: String,
+      expires: Date
     },
     settings: {
       notifications: {

@@ -3,67 +3,81 @@ import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import http from 'http';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { Server } from 'socket.io';
-import { router as authRoutes } from './routes/auth.js';
-import { router as userRoutes } from './routes/users.js';
-import { router as sessionRoutes } from './routes/sessions.js';
-import { router as chatRoutes } from './routes/chat.js';
-import Chat from './models/Chat.js';
+import { router as authRoutes } from '../server/routes/auth.js';
+import { router as userRoutes } from '../server/routes/users.js';
+import { router as sessionRoutes } from '../server/routes/sessions.js';
+import { router as chatRoutes } from '../server/routes/chat.js';
+import Chat from '../server/models/Chat.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from the server directory
+dotenv.config({ path: path.join(__dirname, '../server/.env') });
 
 const app = express();
 const server = http.createServer(app);
 
-// CORS Configuration
-const allowedOrigins = [
-  'http://localhost:5173',
-  'https://timebank-e67e2.web.app',
-  'https://timebank-e67e2.firebaseapp.com'
-];
+// CORS Configuration - More permissive in development
+if (process.env.NODE_ENV === 'production') {
+  const allowedOrigins = [
+    'https://timebank-e67e2.web.app',
+    'https://www.timebank-e67e2.web.app'
+  ];
+  
+  app.use(cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      const msg = `CORS policy: ${origin} not allowed`;
+      console.warn(msg);
+      return callback(new Error(msg), false);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86400
+  }));
+} else {
+  // In development, allow all origins
+  app.use(cors({
+    origin: true, // Allow all origins
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+  console.log('CORS: Running in development mode - allowing all origins');
+}
 
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.some(allowedOrigin => 
-      origin === allowedOrigin || 
-      origin.startsWith(allowedOrigin.replace('https://', 'http://')) ||
-      origin.startsWith(allowedOrigin.replace('http://', 'https://'))
-    )) {
-      return callback(null, true);
-    }
-    
-    const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-    return callback(new Error(msg), false);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-};
+// Handle preflight requests
+app.options('*', cors());
 
-// Middleware
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
-
-// Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: process.env.NODE_ENV === 'production' 
+      ? [
+          'https://timebank-e67e2.web.app',
+          'https://www.timebank-e67e2.web.app'
+        ]
+      : '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }
 });
+
 app.use(express.json());
 
 // Connect to MongoDB
-const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/timebank';
-mongoose.connect(mongoURI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-  .then(() => console.log('Connected to MongoDB'))
+const MONGO_URI = process.env.NODE_ENV === 'production'
+  ? process.env.MONGODB_URI
+  : process.env.MONGODB_URI || 'mongodb://localhost:27017/timebank';
+
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('MongoDB connected'))
   .catch((err) => console.log('MongoDB connection error:', err));
 
 // Routes
@@ -170,13 +184,34 @@ app.get('/', (req, res) => {
   res.json({ message: 'TimeBank API is running!' });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001; // Use environment port or 5001 as fallback
+
+// Connect to MongoDB
+const connectDB = async () => {
+  try {
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/timebank';
+    console.log('Attempting to connect to MongoDB at:', mongoUri);
+    
+    const conn = await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 10s
+      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+      family: 4 // Use IPv4, skip trying IPv6
+    });
+    
+    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error.message);
+    console.error('Make sure MongoDB is running and the connection string is correct.');
+    process.exit(1);
+  }
+};
 
 // Start server only if not in test environment
 if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
-    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-    console.log(`MongoDB connected: ${mongoURI}`);
+  connectDB().then(() => {
+    server.listen(PORT, () => {
+      console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+    });
   });
 }
 

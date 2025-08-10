@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar, Clock, Users, Link as LinkIcon, CheckCircle } from 'lucide-react';
 import axios from 'axios';
+import { API_URL } from '../config/api';
 
 interface Session {
   _id: string;
@@ -23,7 +24,7 @@ interface SessionsListProps {
 export default function SessionsList({ sessions, currentUserId, onRefresh }: SessionsListProps) {
   const handleCompleteSession = async (sessionId: string) => {
     try {
-      await axios.post(`http://localhost:5000/api/sessions/${sessionId}/complete`);
+      await axios.post(`${API_URL}/sessions/${sessionId}/complete`);
       onRefresh();
     } catch (error: any) {
       alert(error.response?.data?.message || 'Failed to complete session');

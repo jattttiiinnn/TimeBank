@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Video, VideoOff, Mic, MicOff, Phone, PhoneOff } from 'lucide-react';
+import { Video, VideoOff, Mic, MicOff, Phone, PhoneOff, Wifi, WifiOff, Camera, CameraOff } from 'lucide-react';
+import toast from 'react-hot-toast';
 import io from 'socket.io-client';
 import { Socket } from 'socket.io-client';
+import { API_URL } from '../config/api';
 
 interface VideoCallProps {
   chatId: string;
@@ -13,8 +15,10 @@ export default function VideoCall({ chatId, otherParticipant, onClose }: VideoCa
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('initializing');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isInitiator, setIsInitiator] = useState(false);
+  const [connectionTimeout, setConnectionTimeout] = useState<NodeJS.Timeout | null>(null);
   
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
@@ -22,17 +26,41 @@ export default function VideoCall({ chatId, otherParticipant, onClose }: VideoCa
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io(import.meta.env.VITE_API_URL);
     setSocket(newSocket);
     console.log('VideoCall: Socket created for chat:', chatId);
+    
+    // Set connection timeout
+    const timeout = setTimeout(() => {
+      if (!isConnected) {
+        console.log('VideoCall: Connection timeout reached');
+        toast.error('📞 Connection timeout. Please try again.', {
+          duration: 4000,
+          icon: '⏰',
+        });
+        setConnectionStatus('failed');
+      }
+    }, 30000); // 30 second timeout
+    
+    setConnectionTimeout(timeout);
 
     newSocket.emit('join-chat', chatId);
     console.log('VideoCall: Joined chat room:', chatId);
 
     newSocket.on('connect', () => {
       console.log('VideoCall: Socket connected');
+      setConnectionStatus('socket-connected');
       // Initialize WebRTC after socket connects
       initializeWebRTC();
+    });
+    
+    newSocket.on('connect_error', (error) => {
+      console.error('VideoCall: Socket connection error:', error);
+      setConnectionStatus('failed');
+      toast.error('📞 Failed to connect to server', {
+        duration: 4000,
+        icon: '❌',
+      });
     });
 
     newSocket.on('video-call-offer', handleOffer);
@@ -40,6 +68,9 @@ export default function VideoCall({ chatId, otherParticipant, onClose }: VideoCa
     newSocket.on('ice-candidate', handleIceCandidate);
 
     return () => {
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+      }
       cleanup();
       newSocket.disconnect();
       console.log('VideoCall: Socket disconnected and cleaned up');
@@ -85,6 +116,12 @@ export default function VideoCall({ chatId, otherParticipant, onClose }: VideoCa
           remoteVideoRef.current.srcObject = event.streams[0];
           setIsConnected(true);
           console.log('VideoCall: Remote video stream set, connection established');
+          
+          // Show connection success notification
+          toast.success(`📹 Connected to ${otherParticipant?.name}`, {
+            duration: 3000,
+            icon: '🎉',
+          });
         }
       };
 
@@ -192,6 +229,15 @@ export default function VideoCall({ chatId, otherParticipant, onClose }: VideoCa
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         setIsVideoOn(videoTrack.enabled);
+        
+        // Show notification for video toggle
+        toast.success(
+          videoTrack.enabled ? '📹 Camera turned on' : '📹 Camera turned off',
+          {
+            duration: 2000,
+            icon: videoTrack.enabled ? '📹' : '📴',
+          }
+        );
       }
     }
   };
@@ -202,6 +248,15 @@ export default function VideoCall({ chatId, otherParticipant, onClose }: VideoCa
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setIsAudioOn(audioTrack.enabled);
+        
+        // Show notification for audio toggle
+        toast.success(
+          audioTrack.enabled ? '🎤 Microphone unmuted' : '🎤 Microphone muted',
+          {
+            duration: 2000,
+            icon: audioTrack.enabled ? '🎤' : '🔇',
+          }
+        );
       }
     }
   };

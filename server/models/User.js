@@ -48,6 +48,15 @@ const userSchema = new mongoose.Schema({
   reviewsCount: {
     type: Number,
     default: 0
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
+  },
+  profilePicture: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true
@@ -55,6 +64,11 @@ const userSchema = new mongoose.Schema({
 
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
+  
+  // Skip hashing for Google auth users (they have placeholder password)
+  if (this.authProvider === 'google' && this.password === 'google-auth') {
+    return next();
+  }
   
   try {
     const salt = await bcrypt.genSalt(10);
