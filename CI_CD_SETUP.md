@@ -39,7 +39,7 @@ git push -u origin main
 
 Add these secrets to your GitHub repository (`Settings > Secrets and variables > Actions`):
 
-#### Required Secrets:
+#### Required Secrets:  
 - **`FIREBASE_TOKEN`** - Firebase CI token
 - **`RENDER_DEPLOY_HOOK`** - Render.com deploy webhook URL
 
@@ -61,13 +61,13 @@ firebase login:ci
 
 Copy the generated token and add it as `FIREBASE_TOKEN` secret in GitHub.
 
-### 4. Render Deploy Hook
+<!-- ### 4. Render Deploy Hook
 
 1. Go to your Render dashboard
 2. Select your service
 3. Go to Settings > Build & Deploy
 4. Copy the "Deploy Hook" URL
-5. Add it as `RENDER_DEPLOY_HOOK` secret in GitHub
+5. Add it as `RENDER_DEPLOY_HOOK` secret in GitHub -->
 
 ### 5. Update Dependabot Configuration
 
