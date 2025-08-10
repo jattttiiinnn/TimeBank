@@ -24,7 +24,7 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Wait for CI checks
-      uses: lewagon/wait-on-check-action@v1.3.1
+      uses: lewagon/wait-on-check-action@v1.4.0
       with:
         ref: ${{ github.head_ref }}
         repo-token: ${{ secrets.GITHUB_TOKEN }}
