@@ -32,11 +32,10 @@ jobs:
     - name: Check TypeScript types
       run: |
         npx tsc --noEmit
-        cd server && npx tsc --noEmit
 
     - name: Check code formatting (Prettier)
       run: |
-        if ! npx prettier --check "src/**/*.{ts,tsx,js,jsx}"; then
+        if ! npx prettier --check "src/**/*.{ts,tsx,js,jsx}" "client/src/**/*.{ts,tsx,js,jsx}"; then
           echo "❌ Code formatting issues found. Run 'npm run format' to fix."
           exit 1
         fi

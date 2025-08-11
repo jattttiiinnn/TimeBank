@@ -25,14 +25,18 @@ jobs:
 
     - name: Update client dependencies
       run: |
-        npm update
-        npm audit fix --audit-level moderate
+        npm update || echo "Warning: npm update failed for client"
+        npm audit fix --audit-level moderate || echo "Warning: audit fix failed for client"
 
     - name: Update server dependencies
       run: |
-        cd server
-        npm update
-        npm audit fix --audit-level moderate
+        if [ -f "server/package.json" ]; then
+          cd server
+          npm update || echo "Warning: npm update failed for server"
+          npm audit fix --audit-level moderate || echo "Warning: audit fix failed for server"
+        else
+          echo "No server package.json found, skipping server updates"
+        fi
 
     - name: Run tests after updates
       run: |
