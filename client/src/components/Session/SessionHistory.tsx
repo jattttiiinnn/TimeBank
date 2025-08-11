@@ -20,7 +20,6 @@ import {
   useMediaQuery
 } from '@mui/material';
 import { 
-  AccessTime, 
   Person, 
   CalendarToday, 
   VideoCall,
@@ -33,6 +32,28 @@ import {
 import { format, isFuture, isToday, parseISO, isBefore, isAfter } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserSessions } from '../../services/sessionService';
+
+interface User {
+  _id: string;
+  uid: string;
+  name: string;
+  profilePicture?: string;
+}
+
+interface Session {
+  _id: string;
+  title?: string;
+  skill: string;
+  scheduledTime: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  status: 'upcoming' | 'completed' | 'cancelled' | 'in-progress';
+  description?: string;
+  roomId?: string;
+  teacher: User;
+  student: User;
+}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -69,7 +90,7 @@ function a11yProps(index: number) {
 
 const SessionHistory: React.FC = () => {
   const [tabValue, setTabValue] = useState(0);
-  const [sessions, setSessions] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { currentUser } = useAuth();
@@ -116,7 +137,7 @@ const SessionHistory: React.FC = () => {
     navigate(`/sessions/${sessionId}`);
   };
 
-  const getSessionStatus = (session: any) => {
+  const getSessionStatus = (session: Session): string => {
     const now = new Date();
     const startTime = new Date(session.scheduledTime);
     const endTime = new Date(startTime.getTime() + session.duration * 60000);
@@ -144,7 +165,7 @@ const SessionHistory: React.FC = () => {
     return 'Scheduled';
   };
 
-  const getStatusChip = (session: any) => {
+  const getStatusChip = (session: Session): React.ReactElement => {
     const status = getSessionStatus(session);
     
     switch (status.toLowerCase()) {
@@ -209,7 +230,7 @@ const SessionHistory: React.FC = () => {
     }
   };
 
-  const getSessionTime = (session: any) => {
+  const getSessionTime = (session: Session): React.ReactElement => {
     const date = new Date(session.scheduledTime);
     const isTodaySession = isToday(date);
     
@@ -225,7 +246,7 @@ const SessionHistory: React.FC = () => {
     );
   };
 
-  const getSessionAction = (session: any) => {
+  const getSessionAction = (session: Session): React.ReactElement => {
     const status = getSessionStatus(session).toLowerCase();
     const isTeacher = currentUser?.uid === session.teacher._id;
     
@@ -273,7 +294,7 @@ const SessionHistory: React.FC = () => {
     );
   };
 
-  const renderSessionItem = (session: any) => {
+  const renderSessionItem = (session: Session): React.ReactElement => {
     const sessionDate = parseISO(session.startTime);
     const isUpcoming = isFuture(sessionDate) || isToday(sessionDate);
     const isActive = isUpcoming && isBefore(new Date(), new Date(session.endTime));

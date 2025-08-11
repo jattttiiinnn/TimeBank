@@ -25,16 +25,16 @@ const root = createRoot(container);
 
 // Render the app
 root.render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <AuthProvider>
-          <AppRouter />
-        </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  </React.StrictMode>
+  React.createElement(React.StrictMode, null,
+    React.createElement(BrowserRouter, null,
+      React.createElement(ThemeProvider, { theme },
+        React.createElement(CssBaseline),
+        React.createElement(AuthProvider, null,
+          React.createElement(AppRouter)
+        )
+      )
+    )
+  )
 );
 
 // Re-export Firebase configuration
