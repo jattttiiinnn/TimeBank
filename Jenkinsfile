@@ -1,24 +1,5 @@
 pipeline {
     agent any
-<<<<<<< HEAD
-    stages {
-        stage('Build') {
-            steps {
-                echo 'Building the project...'
-            }
-        }
-        stage('Test') {
-            steps {
-                echo 'Running tests...'
-            }
-        }
-        stage('Deploy') {
-            steps {
-                echo 'Deploying application...'
-            }
-        }
-    }
-=======
     
     // Environment variables
     environment {
@@ -497,5 +478,4 @@ pipeline {
             echo '🔄 Pipeline status changed!'
         }
     }
->>>>>>> feature/my-change
 }
