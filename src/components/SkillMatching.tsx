@@ -1,17 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, MessageCircle, Star, Video } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 import { API_URL } from '../config/api';
+
+interface Skill {
+  name: string;
+  description: string;
+  sessionsCompleted: number;
+}
 
 interface MatchedUser {
   _id: string;
   name: string;
   email: string;
-  skillsOffered?: Array<{ name: string; description: string; sessionsCompleted: number }>;
-  skillsLearning?: Array<{ name: string; description: string; sessionsCompleted: number }>;
+  skillsOffered?: Skill[];
+  skillsLearning?: Skill[];
   rating: number;
   reviewsCount: number;
+}
+
+interface ApiResponse<T> {
+  data: T;
+  message?: string;
+  success: boolean;
+}
+
+interface ChatResponse {
+  _id: string;
+  participants: Array<{_id: string, name: string, email: string}>;
+  messages: Array<any>;
+  sessionId?: string;
 }
 
 export default function SkillMatching() {
@@ -19,59 +38,167 @@ export default function SkillMatching() {
   const [searchTerm, setSearchTerm] = useState('');
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchMatches();
-  }, []);
-
-  const fetchMatches = async (skill?: string) => {
+  const fetchMatches = useCallback(async (skill?: string) => {
     setLoading(true);
+    setError(null);
+    
     try {
-      const url = `${API_URL}/users/providers${skill ? `?skill=${encodeURIComponent(skill)}` : ''}`;
-      console.log('Fetching matches from:', url);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      console.log('Fetching matches from:', `${API_URL}/users/providers`);
+      console.log('With params:', skill ? { skill } : 'none');
       
-      const response = await axios.get(url, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+      console.log('Fetching matches with token:', token ? 'Token exists' : 'No token');
+      const response = await axios.get<MatchedUser[]>(`${API_URL}/users/providers`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        params: skill ? { skill } : {},
+        withCredentials: true
       });
       
-      console.log('Matches response:', response.data);
-      setMatchedUsers(response.data);
+      if (!response.data) {
+        throw new Error('No data received from server');
+      }
+      
+      console.log('API Response:', response.data);
+      console.log('Found users:', response.data?.length || 0);
+      
+      setMatchedUsers(response.data || []);
     } catch (error: unknown) {
       console.error('Error fetching matches:', error);
-      if (axios.isAxiosError(error) && error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response data:', error.response.data);
+      
+      if (axios.isAxiosError(error)) {
+        const status = error.response?.status;
+        const message = error.response?.data?.message || error.message;
+        
+        if (status === 401) {
+          setError('Please log in to find skill matches');
+        } else if (status === 403) {
+          setError('Access denied. Please check your permissions.');
+        } else if (status === 500) {
+          setError('Server error. Please try again later.');
+        } else {
+          setError(`Failed to fetch skill matches: ${message}`);
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
       }
-      // Set empty array on error to show "no matches" message
+      
       setMatchedUsers([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  };
+  }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    fetchMatches(searchTerm);
-  };
-
-  const startChat = async (userId: string) => {
-    try {
-      await axios.post(`${API_URL}/chat/create`, {
-        participantId: userId
-      });
-      // You could navigate to chat here or show a success message
-      alert('Chat started! Check your Messages tab.');
-    } catch (error) {
-      console.error('Error starting chat:', error);
+    if (searchTerm.trim()) {
+      await fetchMatches(searchTerm.trim());
+    } else {
+      await fetchMatches();
     }
-  };
+  }, [searchTerm, fetchMatches]);
 
-  const getSkillMatches = (userSkills: any[]) => {
-    if (!user?.skillsLearning) return [];
+  const startChat = useCallback(async (userId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post<ChatResponse>(`${API_URL}/chat/create`, 
+        { participantId: userId },
+        { headers: { Authorization: `Bearer ${token}` }}
+      );
+
+      if (response.data._id) {
+        alert('Chat started! Check your Messages tab.');
+        // Optionally navigate to chat: navigate(`/chat/${response.data._id}`);
+      } else {
+        alert('Failed to create chat');
+      }
+    } catch (error: unknown) {
+      console.error('Error starting chat:', error);
+      if (axios.isAxiosError(error)) {
+        alert(error.response?.data?.message || 'Failed to start chat');
+      } else {
+        alert('An unexpected error occurred');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    console.log('SkillMatching component mounted');
+    console.log('User data:', user);
+    console.log('API_URL:', API_URL);
+    
+    // Test basic server connectivity first
+    const testServerConnection = async () => {
+      try {
+        console.log('Testing server connection...');
+        const testUrl = `${API_URL.replace('/api', '')}/health`;
+        console.log('Testing URL:', testUrl);
+        
+        const response = await axios.get(testUrl, { 
+          timeout: 5000,
+          withCredentials: true 
+        });
+        
+        console.log('Server is accessible:', response.status, response.data);
+        
+        // Test authentication
+        const token = localStorage.getItem('token');
+        if (token) {
+          console.log('Testing authenticated endpoint...');
+          try {
+            const authResponse = await axios.get(`${API_URL}/users/me`, {
+              headers: { 'Authorization': `Bearer ${token}` },
+              withCredentials: true
+            });
+            console.log('Authentication test successful:', authResponse.status);
+            console.log('User data from /me:', authResponse.data);
+          } catch (authError) {
+            console.error('Authentication test failed:', authError);
+          }
+        } else {
+          console.warn('No authentication token found');
+        }
+      } catch (error) {
+        console.error('Server connection test failed:', error);
+        if (axios.isAxiosError(error)) {
+          console.error('Error details:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            url: error.config?.url,
+            message: error.message,
+            responseData: error.response?.data
+          });
+          
+          if (error.response?.status === 401) {
+            setError('Authentication failed. Please log in again.');
+          } else if (error.code === 'ECONNABORTED') {
+            setError('Connection to server timed out. Please check your internet connection.');
+          } else {
+            setError(`Server error: ${error.message}`);
+          }
+        } else {
+          setError('Failed to connect to server. Please try again later.');
+        }
+      }
+    };
+    
+    testServerConnection();
+    fetchMatches();
+  }, [fetchMatches, user]);
+
+  const getSkillMatches = (userSkills: Skill[]): Skill[] => {
+    if (!user?.skillsLearning?.length) return [];
     
     return userSkills.filter(skill => 
-      user.skillsLearning.some(learning => 
+      user.skillsLearning!.some(learning => 
         learning.name.toLowerCase().includes(skill.name.toLowerCase()) ||
         skill.name.toLowerCase().includes(learning.name.toLowerCase())
       )
@@ -85,6 +212,16 @@ export default function SkillMatching() {
           <Search className="h-6 w-6 mr-2 text-purple-600" />
           Find Skill Partners
         </h2>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-100 border border-red-300 text-red-700 rounded-lg">
+            <div className="flex items-center">
+              <div className="mr-2">⚠️</div>
+              <div>{error}</div>
+            </div>
+          </div>
+        )}
 
         {/* Search Form */}
         <form onSubmit={handleSearch} className="mb-8">

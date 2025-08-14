@@ -358,8 +358,8 @@ export default function AuthPage() {
               </div>
             </div>
 
-            {/* COMMENTED OUT: Forgot Password Link for Login */}
-            {/* {isLogin && (
+            {/* Forgot Password Link for Login */}
+            {isLogin && (
               <div className="text-right">
                 <button
                   type="button"
@@ -369,7 +369,7 @@ export default function AuthPage() {
                   Forgot your password?
                 </button>
               </div>
-            )} */}
+            )}
 
             <button
               type="submit"

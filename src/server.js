@@ -10,6 +10,7 @@ import { router as authRoutes } from '../server/routes/auth.js';
 import { router as userRoutes } from '../server/routes/users.js';
 import { router as sessionRoutes } from '../server/routes/sessions.js';
 import { router as chatRoutes } from '../server/routes/chat.js';
+import { router as healthRoutes } from '../server/routes/health.js';
 import Chat from '../server/models/Chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -85,6 +86,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api', healthRoutes);
 
 // Socket.io for real-time chat
 io.on('connection', (socket) => {

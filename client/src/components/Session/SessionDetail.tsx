@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import AuthContext from '../../contexts/AuthContext';
 import { 
   Box, 
@@ -14,14 +14,12 @@ import {
   Tooltip,
   Rating,
   useMediaQuery,
-  useTheme,
-  Grid // Using stable Grid component
+  useTheme
 } from '@mui/material';
-import { VideoCallModal } from '../VideoCall/VideoCallModal'; // Named import for VideoCallModal
+import { VideoCallModal } from '../VideoCall/VideoCallModal';
 import { 
   AccessTime, 
   Person, 
-  CalendarToday, 
   VideoCall, 
   ArrowBack,
   Info,
@@ -32,27 +30,53 @@ import {
   InsertDriveFile,
   Refresh
 } from '@mui/icons-material';
-import { format } from 'date-fns';
-// Remove duplicate import
 import { getSession, startSession as startSessionCall } from '../../services/sessionService';
 
-interface StartSessionParams {
-  sessionId: string;
-  roomId: string;
+interface User {
+  _id: string;
+  uid: string;
+  name: string;
+  profilePicture?: string;
+  bio?: string;
+  rating?: number;
+  ratingCount?: number;
+  skills?: Array<{ _id: string; name: string; level: string }>;
+}
+
+interface Session {
+  _id: string;
+  title: string;
+  description?: string;
+  skill: string;
+  duration: number;
+  scheduledTime: string;
+  status: 'pending' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled';
+  roomId?: string;
+  teacher: User;
+  student: User;
+  location?: {
+    type: 'online' | 'in-person';
+    address?: string;
+  };
+  notes?: string;
+  feedback?: string;
+  attachments?: Array<{ _id: string; name: string; url: string }>;
 }
 
 interface SessionDetailProps {
   sessionId: string;
-  onSessionUpdated?: (updatedSession: any) => void;
+  onSessionUpdated?: (updatedSession: Session) => void;
 }
 
 const SessionDetail: React.FC<SessionDetailProps> = ({ sessionId, onSessionUpdated }) => {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showVideoCall, setShowVideoCall] = useState(false);
   const { currentUser } = useContext(AuthContext) || {};
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     const loadSession = async () => {
@@ -172,8 +196,6 @@ const SessionDetail: React.FC<SessionDetailProps> = ({ sessionId, onSessionUpdat
   const isInProgress = session?.status === 'in-progress';
   const canStartSession = isTeacher && session?.status === 'confirmed';
   const otherUser = isTeacher ? session?.student : session?.teacher;
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <Box sx={{ maxWidth: 1200, margin: '0 auto', p: 3 }}>

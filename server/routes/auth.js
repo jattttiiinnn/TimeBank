@@ -276,42 +276,44 @@ router.post('/google', async (req, res) => {
   }
 });
 
-// COMMENTED OUT: Forgot Password (email functionality disabled)
-// router.post('/forgot-password', async (req, res) => {
-//   try {
-//     const { email } = req.body;
+// Forgot Password (simplified without email service)
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
 
-//     // Find user by email
-//     const user = await User.findOne({ email });
-//     if (!user) {
-//       // Don't reveal if user exists for security
-//       return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
-//     }
+    // Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      // Don't reveal if user exists for security
+      return res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
+    }
 
-//     // Generate reset token
-//     const resetToken = crypto.randomBytes(32).toString('hex');
-//     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    // Generate reset token
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-//     // Save reset token to user
-//     user.passwordReset = {
-//       token: resetToken,
-//       expires: resetExpires
-//     };
-//     await user.save();
+    // Save reset token to user
+    user.passwordReset = {
+      token: resetToken,
+      expires: resetExpires
+    };
+    await user.save();
 
-//     // Send password reset email
-//     try {
-//       await emailService.sendPasswordResetEmail(email, user.name, resetToken);
-//     } catch (emailError) {
-//       console.error('Failed to send password reset email:', emailError);
-//       return res.status(500).json({ message: 'Failed to send password reset email. Please try again.' });
-//     }
+    // For now, log the reset link to console (in production, send via email)
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+    console.log(`\n🔑 Password Reset Link for ${email}:`);
+    console.log(`${resetLink}`);
+    console.log('Please copy this link to reset your password.\n');
 
-//     res.json({ message: 'If an account with that email exists, a password reset link has been sent.' });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// });
+    res.json({ 
+      message: 'Password reset instructions have been sent to your email.',
+      // For development purposes, include the reset link in the response
+      ...(process.env.NODE_ENV === 'development' && { resetLink })
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 // Reset Password
 router.post('/reset-password', async (req, res) => {

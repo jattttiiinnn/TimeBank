@@ -120,26 +120,15 @@ export default function LandingPage() {
                   />
                 </motion.a>
               ))}
-              <motion.div
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.8, duration: 0.5 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
               <Link 
                 to="/auth" 
-                className="relative overflow-hidden bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-2 rounded-full font-medium group transition-all duration-300 shadow-lg hover:shadow-xl"
+                className="relative overflow-hidden bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-2 rounded-full font-medium transition-all duration-300 shadow-lg hover:shadow-xl hover:shadow-purple-200"
               >
                 <span className="relative z-10">Get Started</span>
                 <motion.div
-                  className="absolute inset-0 bg-gradient-to-r from-pink-600 to-purple-700"
-                  initial={{ x: '-100%' }}
-                  whileHover={{ x: 0 }}
-                  transition={{ duration: 0.3 }}
+                  className="absolute inset-0 bg-gradient-to-r from-pink-600 to-purple-700 opacity-0 hover:opacity-100 transition-opacity duration-300"
                 />
               </Link>
-              </motion.div>
             </nav>
           </div>
         </div>

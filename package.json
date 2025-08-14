@@ -16,7 +16,6 @@
     "dev:server": "nodemon src/server.js",
     "ci:build": "npm run type-check && npm run lint && npm run build",
     "ci:test": "npm run ci:build",
-    "deploy:firebase": "npm run build && firebase deploy",
     "update-deps": "npm update && cd server && npm update"
   },
   "dependencies": {
