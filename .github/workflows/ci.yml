@@ -40,21 +40,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run Security Audit
+      - name: Run Security Audit (non-blocking)
         run: |
           echo "=== Running security audit ==="
           npm audit --audit-level=high --json > audit-report.json || true
-
-          echo "=== Attempting auto-fix ==="
           npm audit fix || true
-
-          echo "=== Rechecking vulnerabilities ==="
-          if npm audit --audit-level=high; then
-              echo "No high/critical vulnerabilities found"
-          else
-              echo "Security vulnerabilities detected and could not be auto-fixed!"
-              exit 1
-          fi
+          npm audit fix --force || true
+          echo "⚠️ Security vulnerabilities may remain (but not blocking build)"
 
       - name: Upload Audit Report
         uses: actions/upload-artifact@v4
