@@ -10,7 +10,7 @@ import { router as authRoutes } from '../server/routes/auth.js';
 import { router as userRoutes } from '../server/routes/users.js';
 import { router as sessionRoutes } from '../server/routes/sessions.js';
 import { router as chatRoutes } from '../server/routes/chat.js';
-import { router as healthRoutes } from '../server/routes/health.js';
+import healthRoutes from '../server/routes/health.js';
 import Chat from '../server/models/Chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -95,6 +95,10 @@ io.on('connection', (socket) => {
   socket.on('join-chat', (chatId) => {
     socket.join(chatId);
     console.log(`User ${socket.id} joined chat ${chatId}`);
+    
+    // Log room info for debugging
+    const room = io.sockets.adapter.rooms.get(chatId);
+    console.log(`Room ${chatId} now has ${room ? room.size : 0} users`);
   });
 
   socket.on('send-message', async (data) => {
@@ -161,20 +165,36 @@ io.on('connection', (socket) => {
   });
 
   socket.on('video-call-offer', (data) => {
-    console.log('Server: Video call offer:', data);
-    console.log('Server: Broadcasting offer to chat room:', data.chatId);
+    console.log('Server: Video call offer received for room:', data.chatId);
+    console.log('Server: Offer has SDP:', data.offer ? 'Yes' : 'No');
+    
+    const room = io.sockets.adapter.rooms.get(data.chatId);
+    console.log(`Room ${data.chatId} has ${room ? room.size : 0} users for offer broadcast`);
+    
     socket.to(data.chatId).emit('video-call-offer', data);
+    console.log('Server: Offer broadcasted to room');
   });
 
   socket.on('video-call-answer', (data) => {
-    console.log('Server: Video call answer:', data);
-    console.log('Server: Broadcasting answer to chat room:', data.chatId);
+    console.log('Server: Video call answer received for room:', data.chatId);
+    console.log('Server: Answer has SDP:', data.answer ? 'Yes' : 'No');
+    
+    const room = io.sockets.adapter.rooms.get(data.chatId);
+    console.log(`Room ${data.chatId} has ${room ? room.size : 0} users for answer broadcast`);
+    
     socket.to(data.chatId).emit('video-call-answer', data);
+    console.log('Server: Answer broadcasted to room');
   });
 
   socket.on('ice-candidate', (data) => {
-    console.log('Server: ICE candidate received, broadcasting to chat room:', data.chatId);
+    console.log('Server: ICE candidate received for room:', data.chatId);
+    console.log('Server: ICE candidate present:', data.candidate ? 'Yes' : 'No');
+    
+    const room = io.sockets.adapter.rooms.get(data.chatId);
+    console.log(`Room ${data.chatId} has ${room ? room.size : 0} users for ICE broadcast`);
+    
     socket.to(data.chatId).emit('ice-candidate', data);
+    console.log('Server: ICE candidate broadcasted to room');
   });
 
   socket.on('disconnect', () => {
@@ -186,7 +206,7 @@ app.get('/', (req, res) => {
   res.json({ message: 'TimeBank API is running!' });
 });
 
-const PORT = process.env.PORT || 5001; // Use environment port or 5001 as fallback
+const PORT = process.env.PORT || 5000; // Use environment port or 5000 as fallback
 
 // Connect to MongoDB
 const connectDB = async () => {

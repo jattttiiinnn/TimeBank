@@ -65,32 +65,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loginWithGoogle = async () => {
     try {
+      console.log('🔐 Starting Google authentication flow...');
       const result = await signInWithGoogle();
       
       if (result.error) {
-        throw new Error('Google sign-in failed');
+        console.error('🚫 Google sign-in failed:', result.error);
+        throw new Error(result.error.message || 'Google sign-in failed');
       }
 
       if (result.user) {
+        console.log('✅ Firebase authentication successful');
+        console.log('👤 User info:', {
+          email: result.user.email,
+          name: result.user.displayName,
+          uid: result.user.uid
+        });
+
         // Get the Firebase ID token
         const idToken = await result.user.getIdToken();
+        console.log('🎫 Firebase ID token obtained');
         
         // Send the token to your backend for verification and user creation/login
+        console.log('📡 Sending token to backend...');
         const response = await axios.post(`${API_URL}/auth/google`, {
           idToken,
           name: result.user.displayName,
           email: result.user.email,
           photoURL: result.user.photoURL
         });
+
+        console.log('✅ Backend authentication successful');
         
         const { token, user } = response.data;
-        localStorage.setItem('token', token);
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-        setUser(user);
+        if (token && user) {
+          localStorage.setItem('token', token);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          setUser(user);
+          console.log('🎉 User logged in successfully');
+        } else {
+          throw new Error('Invalid response from backend');
+        }
+      } else {
+        throw new Error('No user data received from Google');
       }
-    } catch (error) {
-      console.error('Google login error:', error);
-      throw error;
+    } catch (error: any) {
+      console.error('❌ Google login error:', error);
+      
+      // Enhanced error handling
+      if (error.response) {
+        // Backend error
+        const backendError = error.response.data?.message || 'Backend authentication failed';
+        console.error('🔴 Backend error:', backendError);
+        throw new Error(backendError);
+      } else if (error.message) {
+        // Firebase or network error
+        throw new Error(error.message);
+      } else {
+        throw new Error('Google authentication failed');
+      }
     }
   };
 

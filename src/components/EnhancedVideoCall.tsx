@@ -8,9 +8,10 @@ interface VideoCallProps {
   chatId: string;
   otherParticipant?: { _id: string; name: string };
   onClose: () => void;
+  initiator?: boolean;
 }
 
-export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }: VideoCallProps) {
+export default function EnhancedVideoCall({ chatId, otherParticipant, onClose, initiator = true }: VideoCallProps) {
   const [isVideoOn, setIsVideoOn] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
@@ -23,6 +24,7 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const addDebugInfo = (info: string) => {
@@ -32,6 +34,7 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
   };
 
   useEffect(() => {
+    setIsInitiator(initiator);
     initializeCall();
     
     // Set a 30-second timeout
@@ -68,9 +71,11 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
       });
       
       setSocket(newSocket);
+      socketRef.current = newSocket;
 
       newSocket.on('connect', () => {
         addDebugInfo('Socket connected successfully');
+        addDebugInfo(`Socket ID: ${newSocket.id}`);
         newSocket.emit('join-chat', chatId);
         addDebugInfo(`Joined chat room: ${chatId}`);
         initializeWebRTC();
@@ -83,12 +88,22 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
 
       newSocket.on('disconnect', () => {
         addDebugInfo('Socket disconnected');
+        socketRef.current = null;
       });
 
       // WebRTC signaling handlers
-      newSocket.on('video-call-offer', handleOffer);
-      newSocket.on('video-call-answer', handleAnswer);
-      newSocket.on('ice-candidate', handleIceCandidate);
+      newSocket.on('video-call-offer', (data) => {
+        addDebugInfo(`Received offer from server for room: ${data.chatId}`);
+        handleOffer(data);
+      });
+      newSocket.on('video-call-answer', (data) => {
+        addDebugInfo(`Received answer from server for room: ${data.chatId}`);
+        handleAnswer(data);
+      });
+      newSocket.on('ice-candidate', (data) => {
+        addDebugInfo(`Received ICE candidate from server for room: ${data.chatId}`);
+        handleIceCandidate(data);
+      });
 
     } catch (error) {
       addDebugInfo(`Initialization error: ${error}`);
@@ -169,9 +184,9 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
       };
 
       peerConnection.onicecandidate = (event) => {
-        if (event.candidate && socket) {
+        if (event.candidate && socketRef.current) {
           addDebugInfo('Sending ICE candidate');
-          socket.emit('ice-candidate', {
+          socketRef.current.emit('ice-candidate', {
             chatId,
             candidate: event.candidate
           });
@@ -184,10 +199,15 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
         addDebugInfo(`Added ${track.kind} track to peer connection`);
       });
 
-      // Start as initiator and create offer
-      setIsInitiator(true);
-      addDebugInfo('Set as initiator, creating offer in 2 seconds');
-      setTimeout(createOffer, 2000);
+      // Start based on role
+      if (initiator) {
+        setIsInitiator(true);
+        addDebugInfo('Role: Initiator. Creating offer...');
+        setTimeout(createOffer, 500);
+      } else {
+        setIsInitiator(false);
+        addDebugInfo('Role: Receiver. Waiting for offer...');
+      }
 
     } catch (error) {
       addDebugInfo(`WebRTC initialization error: ${error}`);
@@ -198,7 +218,7 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
 
   const createOffer = async () => {
     try {
-      if (!peerConnectionRef.current || !socket) {
+      if (!peerConnectionRef.current || !socketRef.current) {
         addDebugInfo('Cannot create offer - missing peer connection or socket');
         return;
       }
@@ -208,7 +228,7 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
       await peerConnectionRef.current.setLocalDescription(offer);
       addDebugInfo('Local description set, sending offer');
 
-      socket.emit('video-call-offer', {
+      socketRef.current.emit('video-call-offer', {
         chatId,
         offer
       });
@@ -231,8 +251,8 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
       await peerConnectionRef.current.setLocalDescription(answer);
       addDebugInfo('Local description set, sending answer');
 
-      if (socket) {
-        socket.emit('video-call-answer', {
+      if (socketRef.current) {
+        socketRef.current.emit('video-call-answer', {
           chatId,
           answer
         });
@@ -310,8 +330,9 @@ export default function EnhancedVideoCall({ chatId, otherParticipant, onClose }:
     if (peerConnectionRef.current) {
       peerConnectionRef.current.close();
     }
-    if (socket) {
-      socket.disconnect();
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
     }
   };
 

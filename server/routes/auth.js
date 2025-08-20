@@ -4,7 +4,7 @@ import crypto from 'crypto';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
 import admin from '../config/firebase.js';
-// COMMENTED OUT: import emailService from '../services/emailService.js';
+import emailService from '../services/emailService.js';
 
 const router = express.Router();
 
@@ -175,8 +175,8 @@ router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Check if user exists
-    const user = await User.findOne({ email });
+    // Check if user exists (include password for comparison)
+    const user = await User.findOne({ email }).select('+password');
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
@@ -299,17 +299,24 @@ router.post('/forgot-password', async (req, res) => {
     };
     await user.save();
 
-    // For now, log the reset link to console (in production, send via email)
+    // Build reset link and send email
     const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
-    console.log(`\n🔑 Password Reset Link for ${email}:`);
-    console.log(`${resetLink}`);
-    console.log('Please copy this link to reset your password.\n');
-
-    res.json({ 
-      message: 'Password reset instructions have been sent to your email.',
-      // For development purposes, include the reset link in the response
-      ...(process.env.NODE_ENV === 'development' && { resetLink })
-    });
+    try {
+      await emailService.sendPasswordResetEmail(email, user.name || 'User', resetToken);
+      // For development, also log reset link
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`\n🔑 Password Reset Link for ${email}:`);
+        console.log(`${resetLink}`);
+        console.log('Email dispatched via nodemailer.\n');
+      }
+      res.json({
+        message: 'Password reset instructions have been sent to your email.',
+        ...(process.env.NODE_ENV === 'development' && { resetLink })
+      });
+    } catch (err) {
+      console.error('Failed to send password reset email:', err);
+      res.status(500).json({ message: 'Failed to send password reset email' });
+    }
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

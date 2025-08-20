@@ -50,10 +50,25 @@ export default function AdminPanel() {
   }, [user, isAdmin]);
 
   const checkAdminAccess = async () => {
-    // Only allow jatinbargujjar123@gmail.com to access admin panel
-    if (user && user.email === 'jatinbargujjar123@gmail.com') {
-      setIsAdmin(true);
+    console.log('🔐 Checking admin access...');
+    console.log('Current user:', user);
+    
+    if (!user) {
+      console.log('❌ No user found');
+      setIsAdmin(false);
+      setLoading(false);
+      return;
     }
+
+    // Check if user is admin
+    if (user.email === 'jatinbargujjar123@gmail.com') {
+      console.log('✅ Admin access granted for:', user.email);
+      setIsAdmin(true);
+    } else {
+      console.log('❌ Admin access denied for:', user.email);
+      setIsAdmin(false);
+    }
+    
     setLoading(false);
   };
 
