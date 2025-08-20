@@ -75,10 +75,35 @@ export default function AuthPage() {
     setLoading(true);
     
     try {
+      console.log('🚀 Google sign-in button clicked');
       await loginWithGoogle();
+      console.log('🎉 Google sign-in completed successfully');
     } catch (error: any) {
-      setError(error.message || 'Google sign-in failed');
+      console.error('🔴 Google sign-in failed:', error);
+      
+      let errorMessage = 'Google sign-in failed';
+      
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.code) {
+        switch (error.code) {
+          case 'auth/popup-closed-by-user':
+            errorMessage = 'Sign-in was cancelled. Please try again.';
+            break;
+          case 'auth/popup-blocked':
+            errorMessage = 'Popup was blocked. Please allow popups for this site.';
+            break;
+          case 'auth/network-request-failed':
+            errorMessage = 'Network error. Please check your connection.';
+            break;
+          default:
+            errorMessage = `Authentication error: ${error.code}`;
+        }
+      }
+      
+      setError(errorMessage);
     }
+    
     setLoading(false);
   };
 

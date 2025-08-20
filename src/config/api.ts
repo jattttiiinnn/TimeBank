@@ -5,21 +5,22 @@ const PRODUCTION_API_URL = 'https://timebank-backend.onrender.com';
 
 // Get API URL based on environment
 const getApiBaseUrl = (): string => {
-  // In production, use the production URL
+  // Prefer explicit env var if provided (works for prod builds tested locally)
+  const envUrl = import.meta.env.VITE_API_URL as string | undefined;
+  if (envUrl && envUrl.trim().length > 0) {
+    const trimmed = envUrl.trim();
+    return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+  }
+
+  // If no env var, use production URL only when actually building for prod
   if (import.meta.env.PROD) {
-    console.log('Running in production mode');
+    console.log('Running in production mode with default production API URL');
     return PRODUCTION_API_URL;
   }
 
-  // In development, use the environment variable or fallback to localhost
-  const envUrl = import.meta.env.VITE_API_URL;
-  if (!envUrl) {
-    console.warn('VITE_API_URL is not set, falling back to localhost');
-    return 'http://localhost:5000';
-  }
-  
-  // Remove trailing slash if present
-  return envUrl.endsWith('/') ? envUrl.slice(0, -1) : envUrl;
+  // Fallback for dev
+  console.warn('VITE_API_URL is not set, falling back to http://localhost:5000');
+  return 'http://localhost:5000';
 };
 
 // Export API URLs

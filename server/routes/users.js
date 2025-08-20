@@ -112,6 +112,26 @@ router.get('/users/admin/all', auth, async (req, res) => {
   }
 });
 
+// Debug endpoint to check admin access (remove in production)
+router.get('/debug/admin-check', auth, async (req, res) => {
+  try {
+    const isAdmin = req.user.email === 'jatinbargujjar123@gmail.com';
+    
+    res.json({
+      currentUser: {
+        id: req.user._id,
+        name: req.user.name,
+        email: req.user.email
+      },
+      isAdmin,
+      adminEmail: 'jatinbargujjar123@gmail.com',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Debug error', error: error.message });
+  }
+});
+
 // Debug endpoint to check all users with skills (remove in production)
 router.get('/debug/users-with-skills', auth, async (req, res) => {
   try {
@@ -202,7 +222,7 @@ router.delete('/users/admin/:userId', auth, async (req, res) => {
 });
 
 // Admin: Update user
-router.put('/admin/:userId', auth, async (req, res) => {
+router.put('/users/admin/:userId', auth, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.email !== 'jatinbargujjar123@gmail.com') {

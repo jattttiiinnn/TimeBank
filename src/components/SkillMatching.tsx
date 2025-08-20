@@ -139,7 +139,7 @@ export default function SkillMatching() {
     const testServerConnection = async () => {
       try {
         console.log('Testing server connection...');
-        const testUrl = `${API_URL.replace('/api', '')}/health`;
+        const testUrl = `${API_URL}/health`;
         console.log('Testing URL:', testUrl);
         
         const response = await axios.get(testUrl, { 

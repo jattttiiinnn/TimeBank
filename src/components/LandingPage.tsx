@@ -13,7 +13,9 @@ import {
   Award,
   TrendingUp,
   Globe,
-  Shield
+  Shield,
+  Menu,
+  X
 } from 'lucide-react';
 import { FaGoogle, FaGithub, FaTwitter, FaDiscord } from 'react-icons/fa';
 import { HiSparkles } from 'react-icons/hi';
@@ -22,27 +24,43 @@ import { BsStars } from 'react-icons/bs';
 export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const testimonials = [
     {
-      name: "Sarah Chen",
+      name: "Jayant Parihar",
       role: "UX Designer",
       content: "TimeBank helped me learn coding while teaching design. The community is amazing!",
       avatar: "SC"
     },
     {
-      name: "Mike Johnson",
+      name: "Jatin Kumar",
       role: "Developer",
       content: "I've gained 50+ hours helping others with programming. Best investment of my time!",
       avatar: "MJ"
     },
     {
-      name: "Emily Rodriguez",
+      name: "Chini Chang",
       role: "Marketing Expert",
       content: "The skill exchange here is incredible. I've learned photography and taught marketing.",
       avatar: "ER"
     }
   ];
+
+  // Smooth scroll function
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId);
+    if (element) {
+      const headerOffset = 80; // Account for sticky header
+      const elementPosition = element.offsetTop;
+      const offsetPosition = elementPosition - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -55,7 +73,7 @@ export default function LandingPage() {
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 4000);
+    }, 5000);
     return () => clearInterval(timer);
   }, []);
 
@@ -100,11 +118,12 @@ export default function LandingPage() {
               </motion.div>
             </motion.div>
             
+            {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-8">
               {['Home', 'How It Works', 'Skills', 'About Us', 'Support'].map((item, index) => (
-                <motion.a
+                <motion.button
                   key={item}
-                  href={`#${item.toLowerCase().replace(' ', '-')}`}
+                  onClick={() => scrollToSection(item.toLowerCase().replace(' ', '-'))}
                   className="text-gray-700 hover:text-purple-600 transition-colors relative"
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -118,7 +137,7 @@ export default function LandingPage() {
                     whileHover={{ scaleX: 1 }}
                     transition={{ duration: 0.3 }}
                   />
-                </motion.a>
+                </motion.button>
               ))}
               <Link 
                 to="/auth" 
@@ -130,9 +149,101 @@ export default function LandingPage() {
                 />
               </Link>
             </nav>
+
+            {/* Mobile Menu Button */}
+            <div className="md:hidden">
+              <motion.button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="text-gray-700 hover:text-purple-600 transition-colors p-2"
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+              >
+                {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+              </motion.button>
+            </div>
           </div>
         </div>
       </motion.header>
+
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <motion.div
+            className="fixed inset-0 z-40 md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+              onClick={() => setIsMobileMenuOpen(false)}
+            />
+            
+            {/* Menu Panel */}
+            <motion.div
+              className="absolute top-0 right-0 h-full w-80 bg-white shadow-xl"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+            >
+              <div className="flex flex-col h-full">
+                {/* Header */}
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="h-6 w-6 text-purple-600" />
+                    <span className="text-lg font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-blue-600 bg-clip-text text-transparent">
+                      TimeBank
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <X className="h-6 w-6" />
+                  </button>
+                </div>
+
+                {/* Navigation Links */}
+                <div className="flex-1 py-6">
+                  <nav className="space-y-2 px-6">
+                    {['Home', 'How It Works', 'Skills', 'About Us', 'Support'].map((item, index) => (
+                      <motion.button
+                        key={item}
+                        onClick={() => {
+                          scrollToSection(item.toLowerCase().replace(' ', '-'));
+                          setIsMobileMenuOpen(false);
+                        }}
+                        className="w-full text-left py-3 px-4 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors duration-200"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: index * 0.1, duration: 0.3 }}
+                        whileHover={{ x: 4 }}
+                      >
+                        {item}
+                      </motion.button>
+                    ))}
+                  </nav>
+                </div>
+
+                {/* CTA Button */}
+                <div className="p-6 border-t border-gray-200">
+                  <Link
+                    to="/auth"
+                    className="w-full inline-flex items-center justify-center space-x-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-full font-medium transition-all duration-300 shadow-lg hover:shadow-xl"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    <span>Get Started</span>
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Hero Section */}
       <section id="home" className="relative pt-20 pb-32 overflow-hidden">
@@ -285,10 +396,10 @@ export default function LandingPage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <div className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow duration-300">
+                {/* <div className="w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center hover:shadow-xl transition-shadow duration-300">
                   <div className="w-0 h-0 border-l-[6px] border-l-purple-600 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent ml-1"></div>
                 </div>
-                <span>Watch Demo</span>
+                <span>Watch Demo</span> */}
               </motion.button>
             </motion.div>
 
@@ -510,6 +621,206 @@ export default function LandingPage() {
               </span>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* About Us Section */}
+      <section id="about-us" className="py-20 bg-gradient-to-r from-blue-50 to-purple-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
+              About TimeBank
+            </h2>
+            <p className="text-xl text-gray-600">Building a community where time is the only currency</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <motion.div
+              initial={{ opacity: 0, x: -50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <h3 className="text-2xl font-bold text-gray-800 mb-6">Our Mission</h3>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                TimeBank was created by students for students with a simple belief: everyone has valuable skills to share, 
+                and everyone deserves access to learning opportunities regardless of their financial situation.
+              </p>
+              <p className="text-gray-600 mb-6 leading-relaxed">
+                We're building a world where knowledge flows freely, communities grow stronger, and time becomes 
+                the universal currency that connects us all.
+              </p>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Users className="h-5 w-5 text-purple-600" />
+                  <span className="text-sm text-gray-600">Community-Driven</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Globe className="h-5 w-5 text-blue-600" />
+                  <span className="text-sm text-gray-600">Global Impact</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Shield className="h-5 w-5 text-green-600" />
+                  <span className="text-sm text-gray-600">Safe & Secure</span>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              className="grid grid-cols-2 gap-6"
+              initial={{ opacity: 0, x: 50 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6 }}
+              viewport={{ once: true }}
+            >
+              <div className="bg-white p-6 rounded-2xl shadow-lg text-center">
+                <Award className="h-8 w-8 text-purple-600 mx-auto mb-4" />
+                <h4 className="font-semibold text-gray-800 mb-2">Quality First</h4>
+                <p className="text-sm text-gray-600">Verified skills and comprehensive feedback system</p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl shadow-lg text-center">
+                <TrendingUp className="h-8 w-8 text-blue-600 mx-auto mb-4" />
+                <h4 className="font-semibold text-gray-800 mb-2">Growing Fast</h4>
+                <p className="text-sm text-gray-600">10,000+ active users and expanding daily</p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl shadow-lg text-center">
+                <Heart className="h-8 w-8 text-pink-600 mx-auto mb-4" />
+                <h4 className="font-semibold text-gray-800 mb-2">Built with Love</h4>
+                <p className="text-sm text-gray-600">Created by passionate students who believe in sharing</p>
+              </div>
+              <div className="bg-white p-6 rounded-2xl shadow-lg text-center">
+                <Sparkles className="h-8 w-8 text-yellow-600 mx-auto mb-4" />
+                <h4 className="font-semibold text-gray-800 mb-2">Always Free</h4>
+                <p className="text-sm text-gray-600">No hidden fees, just time exchange</p>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      </section>
+
+      {/* Support Section */}
+      <section id="support" className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            className="text-center mb-16"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+          >
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-800 mb-4">
+              Need Help?
+            </h2>
+            <p className="text-xl text-gray-600">We're here to support your TimeBank journey</p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <motion.div
+              className="text-center p-8 rounded-2xl bg-gradient-to-br from-purple-50 to-blue-50 hover:shadow-lg transition-shadow duration-300"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              viewport={{ once: true }}
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Users className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold mb-4 text-gray-800">Community Forum</h3>
+              <p className="text-gray-600 mb-6">
+                Connect with other TimeBank users, share experiences, and get help from the community.
+              </p>
+              <button className="text-purple-600 font-medium hover:text-purple-700 transition-colors">
+                Join Forum →
+              </button>
+            </motion.div>
+
+            <motion.div
+              className="text-center p-8 rounded-2xl bg-gradient-to-br from-blue-50 to-green-50 hover:shadow-lg transition-shadow duration-300"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              viewport={{ once: true }}
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold mb-4 text-gray-800">Help Center</h3>
+              <p className="text-gray-600 mb-6">
+                Find answers to frequently asked questions and step-by-step guides.
+              </p>
+              <button className="text-blue-600 font-medium hover:text-blue-700 transition-colors">
+                Browse Help →
+              </button>
+            </motion.div>
+
+            <motion.div
+              className="text-center p-8 rounded-2xl bg-gradient-to-br from-green-50 to-yellow-50 hover:shadow-lg transition-shadow duration-300"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              viewport={{ once: true }}
+            >
+              <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-yellow-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Heart className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold mb-4 text-gray-800">Contact Us</h3>
+              <p className="text-gray-600 mb-6">
+                Have a specific question or need personal assistance? We're here to help!
+              </p>
+              <button className="text-green-600 font-medium hover:text-green-700 transition-colors">
+                Get in Touch →
+              </button>
+            </motion.div>
+          </div>
+
+          {/* FAQ Section */}
+          <motion.div
+            className="mt-20"
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            viewport={{ once: true }}
+          >
+            <h3 className="text-2xl font-bold text-gray-800 text-center mb-12">
+              Frequently Asked Questions
+            </h3>
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <h4 className="font-semibold text-gray-800 mb-2">How does TimeBank work?</h4>
+                  <p className="text-gray-600 text-sm">
+                    You earn time credits by helping others with your skills, then spend those credits to learn from other community members.
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <h4 className="font-semibold text-gray-800 mb-2">Is TimeBank really free?</h4>
+                  <p className="text-gray-600 text-sm">
+                    Yes! TimeBank is completely free. The only currency is time - no money changes hands.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-6">
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <h4 className="font-semibold text-gray-800 mb-2">What skills can I share?</h4>
+                  <p className="text-gray-600 text-sm">
+                    Any skill! From coding and design to cooking and music. If you know something, someone wants to learn it.
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-6 rounded-xl">
+                  <h4 className="font-semibold text-gray-800 mb-2">How do I get started?</h4>
+                  <p className="text-gray-600 text-sm">
+                    Simply sign up, create your profile, list your skills, and start connecting with other community members!
+                  </p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
         </div>
       </section>
 

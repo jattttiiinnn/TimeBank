@@ -273,6 +273,9 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
         fromName: 'You'
       });
       console.log('ChatWindow: Video call request sent successfully');
+      // Open the call UI immediately for the caller and mark as initiator
+      setCallInitiator(currentUserId || '');
+      setShowVideoCall(true);
     } catch (error) {
       console.error('ChatWindow: Error sending video call request:', error);
       alert('Failed to initiate video call');
@@ -325,6 +328,7 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
       <VideoCall
         chatId={chat._id}
         otherParticipant={otherParticipant}
+        initiator={currentUserId === callInitiator}
         onClose={() => {
           setShowVideoCall(false);
           if (socket) {

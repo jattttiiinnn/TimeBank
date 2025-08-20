@@ -32,25 +32,36 @@ const VideoCall: React.FC<VideoCallProps> = ({ roomId, userId, onEndCall }) => {
     isCallActive,
     isLoading,
     error,
+    connectionState,
     userVideoRef,
+    startCall,
     joinCall,
     leaveCall,
   } = useVideoCall(roomId, userId);
   
   const [isMuted, setIsMuted] = React.useState(false);
   const [isVideoOff, setIsVideoOff] = React.useState(false);
+  const [isInitiator, setIsInitiator] = React.useState(false);
   const remoteVideosRef = useRef<{[key: string]: HTMLVideoElement | null}>({});
 
-  // Join the call when component mounts
+  // Determine if this user should initiate the call
   useEffect(() => {
     if (roomId && currentUser?.uid) {
-      joinCall();
+      // Simple logic: user with lexicographically smaller ID initiates
+      const shouldInitiate = currentUser.uid < userId;
+      setIsInitiator(shouldInitiate);
+      
+      if (shouldInitiate) {
+        startCall();
+      } else {
+        joinCall();
+      }
     }
     
     return () => {
       leaveCall();
     };
-  }, [roomId, currentUser?.uid, joinCall, leaveCall]);
+  }, [roomId, currentUser?.uid, userId, startCall, joinCall, leaveCall]);
 
   // Handle muting audio
   const toggleMute = () => {
@@ -93,7 +104,10 @@ const VideoCall: React.FC<VideoCallProps> = ({ roomId, userId, onEndCall }) => {
         <Box textAlign="center">
           <CircularProgress />
           <Typography variant="h6" mt={2}>
-            Joining call...
+            {isInitiator ? 'Starting call...' : 'Joining call...'}
+          </Typography>
+          <Typography variant="body2" color="textSecondary" mt={1}>
+            Connection: {connectionState}
           </Typography>
         </Box>
       </Box>
