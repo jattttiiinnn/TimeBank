@@ -23,7 +23,6 @@ jobs:
         run: |
           echo "Node version: $(node --version)"
           echo "NPM version: $(npm --version)"
-          mkdir -p $NPM_CONFIG_CACHE
 
   security-audit:
     runs-on: ubuntu-latest
