@@ -1,0 +1,59 @@
+// ... within your Jenkinsfile pipeline definition
+
+stage('Security Audit') {
+    steps {
+        script {
+            try {
+                sh '''
+                    echo "=== Running security audit ==="
+                    npm audit --audit-level=high --json > audit-report.json || true
+                    
+                    # Try to fix vulnerabilities without --force
+                    npm audit fix || true
+                    
+                    # Check if vulnerabilities remain
+                    if npm audit --audit-level=high; then
+                        echo "No high/critical vulnerabilities found"
+                    else
+                        echo "Security vulnerabilities detected and could not be auto-fixed!"
+                        exit 1 # Fail the build if high/critical vulnerabilities remain
+                    fi
+                '''
+            } catch (Exception e) {
+                echo "Security audit failed: ${e.message}"
+                error "Pipeline stopped due to unresolved vulnerabilities"
+            }
+        }
+    }
+    post {
+        always {
+            archiveArtifacts artifacts: 'audit-report.json', allowEmptyArchive: true
+        }
+    }
+}
+
+// ... in your environment setup stage (prefer Jenkins NodeJS plugin if possible)
+stage('Setup Environment') {
+    steps {
+        script {
+            try {
+                sh '''
+                    echo "=== Setting up Node.js environment ==="
+                    if command -v node >/dev/null 2>&1; then
+                        echo "Node version: $(node --version)"
+                        echo "NPM version: $(npm --version)"
+                    else
+                        echo "Node.js not found, installing..."
+                        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+                        sudo apt-get install -y nodejs
+                    fi
+                    node --version
+                    npm --version
+                    mkdir -p ${NPM_CONFIG_CACHE}
+                '''
+            } catch (Exception e) {
+                error "Environment setup failed: ${e.message}"
+            }
+        }
+    }
+}
