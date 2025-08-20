@@ -1,59 +1,64 @@
-// ... within your Jenkinsfile pipeline definition
+name: CI Pipeline
 
-stage('Security Audit') {
-    steps {
-        script {
-            try {
-                sh '''
-                    echo "=== Running security audit ==="
-                    npm audit --audit-level=high --json > audit-report.json || true
-                    
-                    # Try to fix vulnerabilities without --force
-                    npm audit fix || true
-                    
-                    # Check if vulnerabilities remain
-                    if npm audit --audit-level=high; then
-                        echo "No high/critical vulnerabilities found"
-                    else
-                        echo "Security vulnerabilities detected and could not be auto-fixed!"
-                        exit 1 # Fail the build if high/critical vulnerabilities remain
-                    fi
-                '''
-            } catch (Exception e) {
-                echo "Security audit failed: ${e.message}"
-                error "Pipeline stopped due to unresolved vulnerabilities"
-            }
-        }
-    }
-    post {
-        always {
-            archiveArtifacts artifacts: 'audit-report.json', allowEmptyArchive: true
-        }
-    }
-}
+on:
+  push:
+    branches:
+      - main
+  pull_request:
 
-// ... in your environment setup stage (prefer Jenkins NodeJS plugin if possible)
-stage('Setup Environment') {
-    steps {
-        script {
-            try {
-                sh '''
-                    echo "=== Setting up Node.js environment ==="
-                    if command -v node >/dev/null 2>&1; then
-                        echo "Node version: $(node --version)"
-                        echo "NPM version: $(npm --version)"
-                    else
-                        echo "Node.js not found, installing..."
-                        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-                        sudo apt-get install -y nodejs
-                    fi
-                    node --version
-                    npm --version
-                    mkdir -p ${NPM_CONFIG_CACHE}
-                '''
-            } catch (Exception e) {
-                error "Environment setup failed: ${e.message}"
-            }
-        }
-    }
-}
+jobs:
+  setup-environment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Verify Node.js and NPM versions
+        run: |
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          mkdir -p $NPM_CONFIG_CACHE
+
+  security-audit:
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run Security Audit
+        run: |
+          echo "=== Running security audit ==="
+          npm audit --audit-level=high --json > audit-report.json || true
+
+          echo "=== Attempting auto-fix ==="
+          npm audit fix || true
+
+          echo "=== Rechecking vulnerabilities ==="
+          if npm audit --audit-level=high; then
+              echo "No high/critical vulnerabilities found"
+          else
+              echo "Security vulnerabilities detected and could not be auto-fixed!"
+              exit 1
+          fi
+
+      - name: Upload Audit Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: audit-report
+          path: audit-report.json
