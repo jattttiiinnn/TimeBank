@@ -1,6 +1,7 @@
 import express from 'express';
 import User from '../models/User.js';
 import auth from '../middleware/auth.js';
+import { isAdmin } from '../config/security.js';
 
 const router = express.Router();
 
@@ -96,7 +97,7 @@ router.get('/providers', auth, async (req, res) => {
 router.get('/users/admin/all', auth, async (req, res) => {
   try {
     // Check if user is admin
-    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+    if (!isAdmin(req.user.email)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -112,55 +113,60 @@ router.get('/users/admin/all', auth, async (req, res) => {
   }
 });
 
-// Debug endpoint to check admin access (remove in production)
-router.get('/debug/admin-check', auth, async (req, res) => {
-  try {
-    const isAdmin = req.user.email === 'jatinbargujjar123@gmail.com';
-    
-    res.json({
-      currentUser: {
-        id: req.user._id,
-        name: req.user.name,
-        email: req.user.email
-      },
-      isAdmin,
-      adminEmail: 'jatinbargujjar123@gmail.com',
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Debug error', error: error.message });
-  }
-});
+// DEVELOPMENT ONLY: Debug endpoint to check admin access 
+// NOTE: This endpoint should be removed or secured in production
+if (process.env.NODE_ENV !== 'production') {
+  router.get('/debug/admin-check', auth, async (req, res) => {
+    try {
+      const userIsAdmin = isAdmin(req.user.email);
+      
+      res.json({
+        currentUser: {
+          id: req.user._id,
+          name: req.user.name,
+          email: req.user.email
+        },
+        isAdmin: userIsAdmin,
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Debug error', error: error.message });
+    }
+  });
 
-// Debug endpoint to check all users with skills (remove in production)
-router.get('/debug/users-with-skills', auth, async (req, res) => {
-  try {
-    const totalUsers = await User.countDocuments();
-    const usersWithOfferedSkills = await User.countDocuments({
-      skillsOffered: { $exists: true, $not: { $size: 0 } }
-    });
-    const usersWithLearningSkills = await User.countDocuments({
-      skillsLearning: { $exists: true, $not: { $size: 0 } }
-    });
-    
-    const sampleUsers = await User.find({}, 'name skillsOffered skillsLearning').limit(5);
-    
-    res.json({
-      totalUsers,
-      usersWithOfferedSkills,
-      usersWithLearningSkills,
-      sampleUsers
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Debug error', error: error.message });
-  }
-});
+  // DEVELOPMENT ONLY: Debug endpoint to check all users with skills
+  router.get('/debug/users-with-skills', auth, async (req, res) => {
+    try {
+      const totalUsers = await User.countDocuments();
+      const usersWithOfferedSkills = await User.countDocuments({
+        skillsOffered: { $exists: true, $not: { $size: 0 } }
+      });
+      const usersWithLearningSkills = await User.countDocuments({
+        skillsLearning: { $exists: true, $not: { $size: 0 } }
+      });
+      
+      const sampleUsers = await User.find({}, 'name skillsOffered skillsLearning').limit(5);
+      
+      res.json({
+        totalUsers,
+        usersWithOfferedSkills,
+        usersWithLearningSkills,
+        sampleUsers,
+        environment: process.env.NODE_ENV,
+        warning: 'This is a debug endpoint and should not be available in production'
+      });
+    } catch (error) {
+      res.status(500).json({ message: 'Debug error', error: error.message });
+    }
+  });
+}
 
 // Admin: Get comprehensive statistics
 router.get('/users/admin/stats', auth, async (req, res) => {
   try {
     // Check if user is admin
-    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+    if (!isAdmin(req.user.email)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -198,7 +204,7 @@ router.get('/users/admin/stats', auth, async (req, res) => {
 router.delete('/users/admin/:userId', auth, async (req, res) => {
   try {
     // Check if user is admin
-    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+    if (!isAdmin(req.user.email)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -258,7 +264,7 @@ router.put('/users/admin/:userId', auth, async (req, res) => {
 router.get('/admin/all', auth, async (req, res) => {
   try {
     // Check if user is admin
-    if (req.user.email !== 'jatinbargujjar123@gmail.com') {
+    if (!isAdmin(req.user.email)) {
       return res.status(403).json({ message: 'Access denied' });
     }
 

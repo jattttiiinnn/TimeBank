@@ -7,10 +7,27 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
 dist
 dist-ssr
 *.local
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+config/secrets.json
+secrets/
+
+# Firebase
+.firebase/
+firebase-debug.log*
+firebase-debug.*.log*
 
 # Editor directories and files
 .vscode/*
@@ -22,4 +39,55 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Build artifacts
+build/
+dist/
+coverage/
+.nyc_output
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Database dumps
+*.sql
+*.dump
+*.backup
+
+# Security sensitive files
+*.key
+*.cert
+*.csr
+*.crt
+*.pem
+*.p7b
+*.p7r
+*.spc
+*.pfx
+*.p12
+
+# Local development
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Testing
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+test-results.xml
+
+# Package manager locks (keep for security)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml

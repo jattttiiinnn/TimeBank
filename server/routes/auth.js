@@ -5,78 +5,173 @@ import User from '../models/User.js';
 import auth from '../middleware/auth.js';
 import admin from '../config/firebase.js';
 import emailService from '../services/emailService.js';
+import { authRateLimit, resetOnSuccess } from '../middleware/rateLimit.js';
+import { SECURITY_CONFIG } from '../config/security.js';
+import { validateRegistration, validateLogin, validateOTP } from '../middleware/validation.js';
 
 const router = express.Router();
 
-// Register without OTP (OTP code commented out)
-router.post('/register', async (req, res) => {
+// Register with OTP verification re-enabled
+router.post('/register', authRateLimit, resetOnSuccess, validateRegistration, async (req, res) => {
   try {
     const { name, email, password, skillsOffered = [] } = req.body;
 
     // Check if user exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // COMMENTED OUT: Generate OTP
-    // const otp = emailService.generateOTP();
-    // const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    // Generate OTP for email verification
+    const otp = emailService.generateOTP();
+    const otpExpires = new Date(Date.now() + SECURITY_CONFIG.OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    // Create user with email already verified (skip OTP verification)
+    // Create user with email verification required
     const user = new User({ 
-      name, 
-      email, 
+      name: name.trim(), 
+      email: email.toLowerCase(), 
       password,
       skillsOffered: skillsOffered.length ? skillsOffered : [
         { name: 'General Help', description: 'I can help with general questions', sessionsCompleted: 0 }
       ],
       verification: {
-        isEmailVerified: true, // Set to true to skip OTP verification
-        isPhoneVerified: false
-        // COMMENTED OUT: emailOTP: otp,
-        // COMMENTED OUT: emailOTPExpires: otpExpires
+        isEmailVerified: false, // Require email verification
+        isPhoneVerified: false,
+        emailOTP: otp,
+        emailOTPExpires: otpExpires
       }
     });
     await user.save();
 
-    // COMMENTED OUT: Send OTP email
-    // try {
-    //   await emailService.sendOTPEmail(email, name, otp);
-    // } catch (emailError) {
-    //   console.error('Failed to send OTP email:', emailError);
-    //   // Delete the user if email fails
-    //   await User.findByIdAndDelete(user._id);
-    //   return res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
-    // }
+    // Send OTP email
+    try {
+      await emailService.sendOTPEmail(email, name, otp);
+    } catch (emailError) {
+      console.error('Failed to send OTP email:', emailError);
+      // Delete the user if email fails
+      await User.findByIdAndDelete(user._id);
+      return res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
+    }
 
-    // Generate JWT token immediately (no OTP verification needed)
-    const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.status(201).json({
-      token,
-      message: 'Registration successful! Welcome to TimeBank!',
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        timeBalance: user.timeBalance,
-        isEmailVerified: true
-      }
+    res.status(201).json({ 
+      message: 'User created successfully. Please check your email for verification code.',
+      userId: user._id,
+      email: user.email
     });
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// COMMENTED OUT: Verify OTP and complete registration
-// router.post('/verify-otp', async (req, res) => {
-//   try {
-//     const { email, otp } = req.body;
+// Verify OTP and complete registration
+router.post('/verify-otp', authRateLimit, validateOTP, async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if already verified
+    if (user.verification.isEmailVerified) {
+      return res.status(400).json({ message: 'Email already verified' });
+    }
+
+    // Check OTP validity
+    if (!user.verification.emailOTP || user.verification.emailOTP !== otp) {
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+
+    // Check OTP expiration
+    if (user.verification.emailOTPExpires < new Date()) {
+      return res.status(400).json({ message: 'Verification code has expired. Please request a new one.' });
+    }
+
+    // Mark email as verified
+    user.verification.isEmailVerified = true;
+    user.verification.emailOTP = undefined;
+    user.verification.emailOTPExpires = undefined;
+    await user.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: SECURITY_CONFIG.JWT_EXPIRY }
+    );
+
+    // Send welcome email
+    try {
+      await emailService.sendWelcomeEmail(user.email, user.name);
+    } catch (emailError) {
+      console.error('Failed to send welcome email:', emailError);
+      // Don't fail the request if welcome email fails
+    }
+
+    // Return user data without password
+    const userResponse = {
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      timeBalance: user.timeBalance,
+      skillsOffered: user.skillsOffered,
+      skillsLearning: user.skillsLearning,
+      rating: user.rating,
+      reviewsCount: user.reviewsCount
+    };
+
+    res.json({ 
+      message: 'Email verified successfully. Welcome to TimeBank!',
+      token,
+      user: userResponse
+    });
+  } catch (error) {
+    console.error('OTP verification error:', error);
+    res.status(500).json({ message: 'Failed to verify code', error: error.message });
+  }
+});
+
+// Resend OTP
+router.post('/resend-otp', authRateLimit, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if already verified
+    if (user.verification.isEmailVerified) {
+      return res.status(400).json({ message: 'Email already verified' });
+    }
+
+    // Generate new OTP
+    const otp = emailService.generateOTP();
+    const otpExpires = new Date(Date.now() + SECURITY_CONFIG.OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    // Update user with new OTP
+    user.verification.emailOTP = otp;
+    user.verification.emailOTPExpires = otpExpires;
+    await user.save();
+
+    // Send OTP email
+    await emailService.sendOTPEmail(email, user.name, otp);
+
+    res.json({ message: 'New verification code sent to your email' });
+  } catch (error) {
+    console.error('Resend OTP error:', error);
+    res.status(500).json({ message: 'Failed to send verification code', error: error.message });
+  }
+});
 
 //     // Find user by email
 //     const user = await User.findOne({ email }).select('+verification');
@@ -171,14 +266,22 @@ router.post('/register', async (req, res) => {
 // });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', authRateLimit, resetOnSuccess, validateLogin, async (req, res) => {
   try {
     const { email, password } = req.body;
 
     // Check if user exists (include password for comparison)
-    const user = await User.findOne({ email }).select('+password');
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Check if email is verified (if using OTP system)
+    if (user.verification && !user.verification.isEmailVerified) {
+      return res.status(400).json({ 
+        message: 'Please verify your email before logging in',
+        needsEmailVerification: true 
+      });
     }
 
     // Check password
@@ -191,7 +294,7 @@ router.post('/login', async (req, res) => {
     const token = jwt.sign(
       { userId: user._id },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: SECURITY_CONFIG.JWT_EXPIRY }
     );
 
     res.json({
@@ -200,10 +303,15 @@ router.post('/login', async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        timeBalance: user.timeBalance
+        timeBalance: user.timeBalance,
+        skillsOffered: user.skillsOffered,
+        skillsLearning: user.skillsLearning,
+        rating: user.rating,
+        reviewsCount: user.reviewsCount
       }
     });
   } catch (error) {
+    console.error('Login error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

@@ -11,6 +11,9 @@ import { router as userRoutes } from '../server/routes/users.js';
 import { router as sessionRoutes } from '../server/routes/sessions.js';
 import { router as chatRoutes } from '../server/routes/chat.js';
 import healthRoutes from '../server/routes/health.js';
+import { SECURITY_CONFIG, validateEnvironment } from '../server/config/security.js';
+import { generalApiRateLimit } from '../server/middleware/rateLimit.js';
+import { sanitizeInput } from '../server/middleware/validation.js';
 import Chat from '../server/models/Chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,19 +22,31 @@ const __dirname = path.dirname(__filename);
 // Load environment variables from the server directory
 dotenv.config({ path: path.join(__dirname, '../server/.env') });
 
+// Validate environment variables for security
+try {
+  validateEnvironment();
+  console.log('✅ Environment validation passed');
+} catch (error) {
+  console.error('❌ Environment validation failed:', error.message);
+  process.exit(1);
+}
+
 const app = express();
 const server = http.createServer(app);
 
-// CORS Configuration - More permissive in development
+// Add security headers
+app.use((req, res, next) => {
+  Object.entries(SECURITY_CONFIG.SECURITY_HEADERS).forEach(([header, value]) => {
+    res.setHeader(header, value);
+  });
+  next();
+});
+
+// CORS Configuration - Use security config
 if (process.env.NODE_ENV === 'production') {
-  const allowedOrigins = [
-    'https://timebank-e67e2.web.app',
-    'https://www.timebank-e67e2.web.app'
-  ];
-  
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin || SECURITY_CONFIG.ALLOWED_ORIGINS.includes(origin)) {
         return callback(null, true);
       }
       const msg = `CORS policy: ${origin} not allowed`;
@@ -44,14 +59,14 @@ if (process.env.NODE_ENV === 'production') {
     maxAge: 86400
   }));
 } else {
-  // In development, allow all origins
+  // In development, use configured origins
   app.use(cors({
-    origin: true, // Allow all origins
+    origin: SECURITY_CONFIG.ALLOWED_ORIGINS,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
   }));
-  console.log('CORS: Running in development mode - allowing all origins');
+  console.log('CORS: Running in development mode with configured origins:', SECURITY_CONFIG.ALLOWED_ORIGINS);
 }
 
 // Handle preflight requests
@@ -60,17 +75,20 @@ app.options('*', cors());
 const io = new Server(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production' 
-      ? [
-          'https://timebank-e67e2.web.app',
-          'https://www.timebank-e67e2.web.app'
-        ]
-      : '*',
+      ? SECURITY_CONFIG.ALLOWED_ORIGINS
+      : SECURITY_CONFIG.ALLOWED_ORIGINS,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
   }
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// Apply rate limiting to all routes
+app.use(generalApiRateLimit);
+
+// Apply input sanitization to all routes
+app.use(sanitizeInput);
 
 // Connect to MongoDB
 const MONGO_URI = process.env.NODE_ENV === 'production'

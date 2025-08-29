@@ -57,6 +57,24 @@ const userSchema = new mongoose.Schema({
   profilePicture: {
     type: String,
     default: null
+  },
+  verification: {
+    isEmailVerified: {
+      type: Boolean,
+      default: false
+    },
+    isPhoneVerified: {
+      type: Boolean,
+      default: false
+    },
+    emailOTP: {
+      type: String,
+      select: false // Don't include in queries by default
+    },
+    emailOTPExpires: {
+      type: Date,
+      select: false // Don't include in queries by default
+    }
   }
 }, {
   timestamps: true
