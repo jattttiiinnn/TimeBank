@@ -41,13 +41,58 @@ export default function AdminPanel() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [sortBy, setSortBy] = useState('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
+  // Check admin access on mount and when user changes
   useEffect(() => {
     checkAdminAccess();
-    if (isAdmin) {
-      loadAdminData();
-    }
-  }, [user, isAdmin]);
+  }, [user]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd/Ctrl + R to refresh
+      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+        e.preventDefault();
+        loadAdminData();
+      }
+      // Esc to close modals or clear selection
+      if (e.key === 'Escape') {
+        if (showUserModal) {
+          setShowUserModal(false);
+        } else if (selectedUsers.length > 0) {
+          setSelectedUsers([]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showUserModal, selectedUsers.length]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timerId);
+  }, [searchTerm]);
+
+  // Load admin data when isAdmin changes or debounced search term updates
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    // Initial data load
+    loadAdminData();
+    
+    // Set up polling (every 30 seconds)
+    const pollInterval = setInterval(loadAdminData, 30000);
+    
+    // Cleanup interval on unmount
+    return () => clearInterval(pollInterval);
+  }, [isAdmin, debouncedSearchTerm]);
 
   const checkAdminAccess = async () => {
     console.log('🔐 Checking admin access...');
@@ -80,59 +125,123 @@ export default function AdminPanel() {
 
     try {
       const token = localStorage.getItem('token');
-      const headers = { 'Authorization': `Bearer ${token}` };
-
-      await axios.delete(`${API_URL}/users/admin/${userId}`, { headers });
-      
-      // Remove user from local state
-      setUsers(users.filter(u => u._id !== userId));
-      setSelectedUsers(selectedUsers.filter(id => id !== userId));
-      
-      // Update stats
-      if (stats) {
-        setStats({
-          ...stats,
-          totalUsers: stats.totalUsers - 1
-        });
+      if (!token) {
+        throw new Error('No authentication token found');
       }
       
-      toast.success(`User "${userName}" deleted successfully`);
+      const headers = { 'Authorization': `Bearer ${token}` };
+
+      const response = await axios.delete(`${API_URL}/users/admin/${userId}`, { 
+        headers,
+        validateStatus: status => status < 500 // Don't throw for 4xx errors
+      });
+
+      if (response.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
+
+      if (response.status === 200) {
+        // Remove user from local state
+        setUsers(users.filter(u => u._id !== userId));
+        setSelectedUsers(selectedUsers.filter(id => id !== userId));
+        
+        // Update stats
+        if (stats) {
+          setStats({
+            ...stats,
+            totalUsers: stats.totalUsers - 1
+          });
+        }
+        
+        toast.success(`User "${userName}" deleted successfully`);
+      } else {
+        throw new Error(response.data?.message || 'Failed to delete user');
+      }
     } catch (error: any) {
       console.error('Error deleting user:', error);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to delete user';
+      
       if (error.response?.status === 404) {
         toast.error('⚠️ Delete functionality requires backend deployment. Admin endpoints not available yet.');
+      } else if (error.response?.status === 403) {
+        toast.error('⛔ You do not have permission to perform this action');
       } else {
-        toast.error(error.response?.data?.message || 'Failed to delete user');
+        toast.error(`Error: ${errorMessage}`);
       }
     }
   };
 
-  // Update user function
+  // Update user function - used in the user edit modal
   const handleUpdateUser = async (userId: string, updates: Partial<User>) => {
+    if (!userId || !updates || Object.keys(updates).length === 0) return;
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const response = await axios.put(`${API_URL}/users/admin/${userId}`, updates, { headers });
-      
-      // Update user in local state
-      setUsers(users.map(u => u._id === userId ? response.data.user : u));
-      
-      toast.success('User updated successfully');
-      setShowUserModal(false);
-      setSelectedUser(null);
+      const response = await axios.put(
+        `${API_URL}/users/admin/${userId}`, 
+        updates, 
+        { 
+          headers,
+          validateStatus: status => status < 500
+        }
+      );
+
+      if (response.status === 200 && response.data?.success) {
+        // Update local state
+        setUsers(users.map(u => u._id === userId ? response.data.user : u));
+        setLastUpdated(new Date());
+        toast.success('✅ User updated successfully');
+        setShowUserModal(false);
+        setSelectedUser(null);
+      } else if (response.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        toast.error('Session expired. Please log in again.');
+      } else if (response.status === 403) {
+        toast.error('⛔ You do not have permission to update users');
+      } else if (response.status === 404) {
+        toast.error('⚠️ User not found');
+      } else {
+        throw new Error(response.data?.message || 'Failed to update user');
+      }
     } catch (error: any) {
       console.error('Error updating user:', error);
-      toast.error(error.response?.data?.message || 'Failed to update user');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to update user';
+      
+      if (error.response?.status === 401) {
+        // Token expired or invalid
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        toast.error('Session expired. Please log in again.');
+      } else if (error.response?.status === 403) {
+        toast.error('⛔ You do not have permission to update users');
+      } else if (error.response?.status === 404) {
+        toast.error('⚠️ User not found or admin endpoints not available');
+      } else {
+        toast.error(`Error: ${errorMessage}`);
+      }
+      
+      // Re-fresh data if update fails to ensure consistency
+      loadAdminData();
     }
   };
 
   const loadAdminData = async () => {
-    setDataLoading(true);
-    setError(null);
-    console.log('Loading admin data...');
-    
     try {
+      setDataLoading(true);
+      setError(null);
+      setLastUpdated(new Date());
+      console.log('Loading admin data...');
+      
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
 
@@ -193,15 +302,31 @@ export default function AdminPanel() {
       console.error('Error loading admin data:', error);
       
       let errorMessage = 'Failed to load admin data';
+      let shouldLogout = false;
+      
       if (error.response) {
         console.error('Response status:', error.response.status);
         console.error('Response data:', error.response.data);
-        errorMessage = `API Error ${error.response.status}: ${error.response.data?.message || 'Unknown error'}`;
+        
+        // Handle token expiration
+        if (error.response.status === 401) {
+          errorMessage = 'Your session has expired. Please log in again.';
+          shouldLogout = true;
+        } else {
+          errorMessage = `API Error ${error.response.status}: ${error.response.data?.message || 'Unknown error'}`;
+        }
       } else if (error.message) {
         errorMessage = error.message;
       }
       
       setError(errorMessage);
+      
+      // Redirect to login if token is invalid/expired
+      if (shouldLogout) {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+        return;
+      }
       
       // Set empty data to show something
       setUsers([]);
@@ -215,6 +340,47 @@ export default function AdminPanel() {
       });
     } finally {
       setDataLoading(false);
+    }
+  };
+
+  // Bulk delete users
+  const handleBulkDelete = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    const userNames = users
+      .filter(user => selectedUsers.includes(user._id))
+      .map(user => user.name)
+      .join(', ');
+
+    if (!confirm(`Are you sure you want to delete ${selectedUsers.length} user(s)?\n\n${userNames}`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      // In a real app, you would call a bulk delete endpoint
+      // For now, we'll delete users one by one
+      const deletePromises = selectedUsers.map(userId => 
+        axios.delete(`${API_URL}/users/admin/${userId}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          validateStatus: status => status < 500
+        })
+      );
+
+      await Promise.all(deletePromises);
+      
+      // Refresh data after deletion
+      loadAdminData();
+      setSelectedUsers([]);
+      
+      toast.success(`Successfully deleted ${selectedUsers.length} user(s)`);
+    } catch (error) {
+      console.error('Error in bulk delete:', error);
+      toast.error('Failed to delete users. Please try again.');
     }
   };
 
@@ -267,19 +433,39 @@ export default function AdminPanel() {
         {/* Debug Info */}
         <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h4 className="text-sm font-medium text-yellow-800">Debug Information</h4>
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-yellow-800">Admin Panel</h4>
               <p className="text-xs text-yellow-600">
-                API: {API_URL} | Token: {localStorage.getItem('token') ? 'Present' : 'Missing'} | Users: {users.length}
+                {lastUpdated ? `Last updated: ${lastUpdated.toLocaleTimeString()}` : 'Loading...'} | 
+                Users: {users.length} | 
+                API: {API_URL.split('/')[2]}
               </p>
             </div>
-            <button
-              onClick={loadAdminData}
-              disabled={dataLoading}
-              className="bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-yellow-700 disabled:opacity-50"
-            >
-              {dataLoading ? 'Refreshing...' : 'Refresh Data'}
-            </button>
+            <div className="flex items-center space-x-3">
+              <span className="text-xs text-gray-500 hidden sm:inline">
+                Auto-refresh in {dataLoading ? '...' : '30s'}
+              </span>
+              <div className="relative group" title="Refresh (Ctrl+R)">
+                <button
+                  onClick={loadAdminData}
+                  disabled={dataLoading}
+                  className={`flex items-center space-x-1.5 bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-yellow-700 disabled:opacity-50 transition-all duration-200 ${dataLoading ? 'pl-3 pr-4' : 'px-3'}`}
+                >
+                  <RefreshCw className={`h-4 w-4 ${dataLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform'}`} />
+                  <span className={`transition-opacity ${dataLoading ? 'opacity-0 w-0 overflow-hidden' : 'opacity-100'}`}>
+                    Refresh
+                  </span>
+                  {dataLoading && (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <span className="animate-pulse">Refreshing...</span>
+                    </span>
+                  )}
+                </button>
+                <div className="absolute -bottom-7 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+                  Refresh (Ctrl+R)
+                </div>
+              </div>
+            </div>
           </div>
           {error && (
             <div className="mt-2 text-sm text-red-600 bg-red-50 p-2 rounded">
@@ -491,10 +677,12 @@ export default function AdminPanel() {
                         Clear Selection
                       </button>
                       <button
-                        onClick={() => {}}
-                        className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                        onClick={handleBulkDelete}
+                        disabled={dataLoading}
+                        className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 flex items-center space-x-1"
                       >
-                        Bulk Delete
+                        <Trash2 className="h-3 w-3" />
+                        <span>Delete Selected ({selectedUsers.length})</span>
                       </button>
                     </div>
                   </div>
@@ -666,6 +854,75 @@ export default function AdminPanel() {
           </div>
         )}
       </div>
+
+      {/* User Edit Modal */}
+      {showUserModal && selectedUser && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+          onClick={(e) => e.target === e.currentTarget && setShowUserModal(false)}
+        >
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold">Edit User: {selectedUser.name}</h3>
+              <button
+                onClick={() => setShowUserModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  defaultValue={selectedUser.name}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  defaultValue={selectedUser.email}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <select
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={() => setShowUserModal(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  handleUpdateUser(selectedUser._id, {
+                    name: (document.querySelector('input[type="text"]') as HTMLInputElement)?.value,
+                    email: (document.querySelector('input[type="email"]') as HTMLInputElement)?.value,
+                    // Add other fields as needed
+                  });
+                }}
+                className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
