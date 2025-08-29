@@ -25,6 +25,7 @@ export default function LandingPage() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState('home');
 
   const testimonials = [
     {
@@ -59,16 +60,39 @@ export default function LandingPage() {
         top: offsetPosition,
         behavior: 'smooth'
       });
+      
+      setActiveSection(sectionId);
+      setIsMobileMenuOpen(false);
     }
   };
 
+  // Update active section on scroll
   useEffect(() => {
     const handleScroll = () => {
+      const sections = ['home', 'how-it-works', 'skills', 'about-us', 'support'];
+      let current = '';
+      
+      sections.forEach(section => {
+        const element = document.getElementById(section);
+        if (element) {
+          const rect = element.getBoundingClientRect();
+          if (rect.top <= 100 && rect.bottom >= 100) {
+            current = section;
+          }
+        }
+      });
+      
+      if (current) {
+        setActiveSection(current);
+      }
+      
       setIsScrolled(window.scrollY > 50);
     };
+    
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -76,6 +100,17 @@ export default function LandingPage() {
     }, 5000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isMobileMenuOpen]);
 
   return (
     <div className="min-h-screen overflow-hidden">
@@ -209,22 +244,35 @@ export default function LandingPage() {
                 {/* Navigation Links */}
                 <div className="flex-1 py-6">
                   <nav className="space-y-2 px-6">
-                    {['Home', 'How It Works', 'Skills', 'About Us', 'Support'].map((item, index) => (
-                      <motion.button
-                        key={item}
-                        onClick={() => {
-                          scrollToSection(item.toLowerCase().replace(' ', '-'));
-                          setIsMobileMenuOpen(false);
-                        }}
-                        className="w-full text-left py-3 px-4 text-gray-700 hover:text-purple-600 hover:bg-purple-50 rounded-lg transition-colors duration-200"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: index * 0.1, duration: 0.3 }}
-                        whileHover={{ x: 4 }}
-                      >
-                        {item}
-                      </motion.button>
-                    ))}
+                    {['Home', 'How It Works', 'Skills', 'About Us', 'Support'].map((item, index) => {
+                      const sectionId = item.toLowerCase().replace(' ', '-');
+                      return (
+                        <motion.button
+                          key={item}
+                          onClick={() => scrollToSection(sectionId)}
+                          className={`w-full text-left py-3 px-4 rounded-lg transition-all duration-200 ${
+                            activeSection === sectionId 
+                              ? 'text-purple-600 bg-purple-50 font-medium' 
+                              : 'text-gray-700 hover:text-purple-600 hover:bg-purple-50'
+                          }`}
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.1, duration: 0.3 }}
+                          whileHover={{ x: 4 }}
+                          aria-current={activeSection === sectionId ? 'page' : undefined}
+                        >
+                          {item}
+                          {activeSection === sectionId && (
+                            <motion.span 
+                              className="ml-2 inline-block w-1.5 h-1.5 bg-purple-600 rounded-full"
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              transition={{ type: 'spring', stiffness: 500 }}
+                            />
+                          )}
+                        </motion.button>
+                      );
+                    })}
                   </nav>
                 </div>
 
