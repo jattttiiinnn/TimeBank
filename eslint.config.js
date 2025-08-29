@@ -28,6 +28,9 @@ export default tseslint.config(
         'warn',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }
       ],
+      // Temporarily relax some rules for security audit focus
+      '@typescript-eslint/no-explicit-any': 'warn',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   }
 );

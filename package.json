@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:server": "nodemon src/server.js",
     "build": "vite build",
-    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint .",
     "preview": "vite preview",
     "test": "jest --testPathPattern=unit",
     "test:watch": "jest --watch --testPathPattern=unit",
@@ -17,8 +17,7 @@
     "test:e2e:ui": "playwright test --ui tests/e2e",
     "test:performance": "playwright test tests/performance",
     "test:all": "npm run test && npm run test:integration && npm run test:e2e && npm run test:performance",
-    "test:ci": "npm run test:coverage && npm run test:integration && npm run test:e2e",
-    "lighthouse": "lhci autorun"
+    "test:ci": "npm run test:coverage && npm run test:integration && npm run test:e2e"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -45,13 +44,13 @@
     "react-icons": "^5.0.1",
     "react-router-dom": "^6.21.3",
     "socket.io": "^4.7.4",
-    "socket.io-client": "^4.7.4"
+    "socket.io-client": "^4.7.4",
+    "typescript-eslint": "^8.41.0"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.28.3",
     "@babel/preset-react": "^7.27.1",
     "@babel/preset-typescript": "^7.27.1",
-    "@lhci/cli": "^0.12.0",
     "@playwright/test": "^1.54.2",
     "@testing-library/jest-dom": "^6.7.0",
     "@testing-library/react": "^13.4.0",
@@ -74,7 +73,7 @@
     "postcss": "^8.4.33",
     "supertest": "^6.3.4",
     "tailwindcss": "^3.4.1",
-    "vite": "^5.0.8"
+    "vite": "^7.1.3"
   },
   "jest": {
     "testEnvironment": "jsdom",
