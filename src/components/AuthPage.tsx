@@ -72,20 +72,18 @@ export default function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     setError('');
+    setError('');
     setLoading(true);
-    
     try {
       console.log('🚀 Google sign-in button clicked');
       await loginWithGoogle();
       console.log('🎉 Google sign-in completed successfully');
     } catch (error: any) {
       console.error('🔴 Google sign-in failed:', error);
-      
       let errorMessage = 'Google sign-in failed';
-      
-      if (error.message) {
+      if (error?.message) {
         errorMessage = error.message;
-      } else if (error.code) {
+      } else if (error?.code) {
         switch (error.code) {
           case 'auth/popup-closed-by-user':
             errorMessage = 'Sign-in was cancelled. Please try again.';
@@ -100,12 +98,10 @@ export default function AuthPage() {
             errorMessage = `Authentication error: ${error.code}`;
         }
       }
-      
       setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
-  };
 
   // COMMENTED OUT OTP: const handleOTPVerificationSuccess = () => {
   //   // Redirect will be handled by the AuthContext
@@ -253,6 +249,7 @@ export default function AuthPage() {
             </motion.div>
           </div>
         </motion.div>
+      </div> {/* End right-side auth form */}
 
         {/* Right Side - Auth Form */}
         <div className="flex-1 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
@@ -447,8 +444,8 @@ export default function AuthPage() {
           </div>
         </div>
       </motion.div>
-      </div>
-      </div>
-    </div>
+      </div> 
+    </div> 
   );
+}
 }

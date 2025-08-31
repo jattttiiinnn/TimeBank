@@ -1,240 +1,254 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
-import dotenv from 'dotenv';
 import http from 'http';
+import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Server } from 'socket.io';
-import { router as authRoutes } from '../server/routes/auth.js';
-import { router as userRoutes } from '../server/routes/users.js';
-import { router as sessionRoutes } from '../server/routes/sessions.js';
-import { router as chatRoutes } from '../server/routes/chat.js';
-import healthRoutes from '../server/routes/health.js';
-import Chat from '../server/models/Chat.js';
+
+// Config
+import config from './config/env.js';
+import { connectDB } from './config/database.js';
+
+// Middleware
+import errorHandler from './middleware/errorHandler.js';
+import apiLimiter from './middleware/rateLimiter.js';
+
+// Routes
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
+import sessionRoutes from './routes/sessions.js';
+import chatRoutes from './routes/chat.js';
+import healthRoutes from './routes/health.js';
+
+// Models
+import Chat from './models/Chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Load environment variables from the server directory
-dotenv.config({ path: path.join(__dirname, '../server/.env') });
-
 const app = express();
 const server = http.createServer(app);
 
-// CORS Configuration - More permissive in development
-if (process.env.NODE_ENV === 'production') {
-  const allowedOrigins = [
-    'https://timebank-e67e2.web.app',
-    'https://www.timebank-e67e2.web.app'
-  ];
-  
-  app.use(cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      const msg = `CORS policy: ${origin} not allowed`;
-      console.warn(msg);
-      return callback(new Error(msg), false);
-    },
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true,
-    maxAge: 86400
-  }));
-} else {
-  // In development, allow all origins
-  app.use(cors({
-    origin: true, // Allow all origins
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-  }));
-  console.log('CORS: Running in development mode - allowing all origins');
-}
+// CORS Configuration
+app.use(cors({
+  origin: config.cors.allowedOrigins,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  maxAge: 86400
+}));
 
 // Handle preflight requests
 app.options('*', cors());
 
+// Socket.IO Configuration
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? [
-          'https://timebank-e67e2.web.app',
-          'https://www.timebank-e67e2.web.app'
-        ]
-      : '*',
+    origin: config.cors.allowedOrigins,
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
-  }
+  },
+  pingTimeout: 10000,
+  pingInterval: 25000,
+  maxHttpBufferSize: 1e8 // 100MB
 });
 
-app.use(express.json());
+// Middleware
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
-// Connect to MongoDB
-const MONGO_URI = process.env.NODE_ENV === 'production'
-  ? process.env.MONGODB_URI
-  : process.env.MONGODB_URI || 'mongodb://localhost:27017/timebank';
+// Rate limiting
+app.use('/api/', apiLimiter);
 
-mongoose.connect(MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.log('MongoDB connection error:', err));
+// Test endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'success',
+    message: 'Server is running',
+    timestamp: new Date().toISOString(),
+    environment: config.env,
+    nodeVersion: process.version
+  });
+});
 
-// Routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/sessions', sessionRoutes);
 app.use('/api/chat', chatRoutes);
-app.use('/api', healthRoutes);
 
-// Socket.io for real-time chat
+// Error handling middleware (must be after all routes)
+app.use(errorHandler);
+
+// Socket.IO Connection Handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
+  // Join chat room
   socket.on('join-chat', (chatId) => {
-    socket.join(chatId);
-    console.log(`User ${socket.id} joined chat ${chatId}`);
-    
-    // Log room info for debugging
-    const room = io.sockets.adapter.rooms.get(chatId);
-    console.log(`Room ${chatId} now has ${room ? room.size : 0} users`);
+    try {
+      socket.join(chatId);
+      console.log(`User ${socket.id} joined chat ${chatId}`);
+      
+      const room = io.sockets.adapter.rooms.get(chatId);
+      console.log(`Room ${chatId} now has ${room ? room.size : 0} users`);
+    } catch (error) {
+      console.error('Error joining chat:', error);
+      socket.emit('error', { message: 'Failed to join chat' });
+    }
   });
 
+  // Handle new messages
   socket.on('send-message', async (data) => {
-    console.log('Server: Received send-message event:', data);
     try {
       const { chatId, senderId, content } = data;
       
-      const chat = await Chat.findById(chatId);
-      if (chat) {
-        chat.messages.push({
-          senderId,
-          content,
-          timestamp: new Date()
-        });
-        chat.lastActivity = new Date();
-        await chat.save();
-        
-        await chat.populate('messages.senderId', 'name');
-        const newMessage = chat.messages[chat.messages.length - 1];
-        
-        // Emit to chat room and also globally for notifications
-        io.to(chatId).emit('new-message', newMessage);
-        socket.broadcast.emit('new-message', { ...newMessage, chatId });
-        console.log('Server: Message sent successfully');
+      if (!chatId || !senderId || !content) {
+        throw new Error('Missing required fields');
       }
+      
+      const chat = await Chat.findById(chatId);
+      if (!chat) {
+        throw new Error('Chat not found');
+      }
+      
+      chat.messages.push({
+        senderId,
+        content,
+        timestamp: new Date()
+      });
+      
+      chat.lastActivity = new Date();
+      await chat.save();
+      
+      await chat.populate('messages.senderId', 'name');
+      const newMessage = chat.messages[chat.messages.length - 1];
+      
+      // Emit to chat room and also globally for notifications
+      io.to(chatId).emit('new-message', newMessage);
+      socket.broadcast.emit('new-message', { ...newMessage, chatId });
     } catch (error) {
       console.error('Error sending message:', error);
+      socket.emit('error', { message: error.message || 'Failed to send message' });
     }
   });
 
   // Video call events
   socket.on('initiate-video-call', (data) => {
-    console.log('Server: Video call initiated:', data);
-    console.log('Server: Emitting to chat room:', data.chatId);
-    console.log('Server: Sender socket ID:', socket.id);
-    console.log('Server: Broadcasting to other users in room');
-    socket.to(data.chatId).emit('incoming-video-call', {
-      from: data.from,
-      chatId: data.chatId,
-      fromName: data.fromName || 'Unknown User'
-    });
-    console.log('Server: incoming-video-call event emitted');
+    try {
+      console.log('Video call initiated:', data);
+      socket.to(data.chatId).emit('incoming-video-call', {
+        from: data.from,
+        chatId: data.chatId,
+        fromName: data.fromName || 'Unknown User'
+      });
+    } catch (error) {
+      console.error('Error initiating video call:', error);
+      socket.emit('error', { message: 'Failed to initiate video call' });
+    }
   });
 
   socket.on('accept-video-call', (data) => {
-    console.log('Server: Video call accepted:', data);
-    console.log('Server: Notifying caller that call was accepted');
-    socket.to(data.chatId).emit('call-accepted', {
-      from: data.to
-    });
+    try {
+      socket.to(data.chatId).emit('call-accepted', {
+        from: data.to
+      });
+    } catch (error) {
+      console.error('Error accepting video call:', error);
+      socket.emit('error', { message: 'Failed to accept video call' });
+    }
   });
 
   socket.on('reject-video-call', (data) => {
-    console.log('Server: Video call rejected:', data);
-    console.log('Server: Notifying caller that call was rejected');
-    socket.to(data.chatId).emit('call-rejected', {
-      from: data.to
-    });
+    try {
+      socket.to(data.chatId).emit('call-rejected', {
+        from: data.to
+      });
+    } catch (error) {
+      console.error('Error rejecting video call:', error);
+      socket.emit('error', { message: 'Failed to reject video call' });
+    }
   });
 
   socket.on('end-video-call', (data) => {
-    console.log('Server: Video call ended:', data);
-    socket.to(data.chatId).emit('call-ended');
+    try {
+      socket.to(data.chatId).emit('call-ended');
+    } catch (error) {
+      console.error('Error ending video call:', error);
+      socket.emit('error', { message: 'Failed to end video call' });
+    }
   });
 
   socket.on('video-call-offer', (data) => {
-    console.log('Server: Video call offer received for room:', data.chatId);
-    console.log('Server: Offer has SDP:', data.offer ? 'Yes' : 'No');
-    
-    const room = io.sockets.adapter.rooms.get(data.chatId);
-    console.log(`Room ${data.chatId} has ${room ? room.size : 0} users for offer broadcast`);
-    
-    socket.to(data.chatId).emit('video-call-offer', data);
-    console.log('Server: Offer broadcasted to room');
+    try {
+      socket.to(data.chatId).emit('video-call-offer', data);
+    } catch (error) {
+      console.error('Error handling video call offer:', error);
+      socket.emit('error', { message: 'Failed to process video call offer' });
+    }
   });
 
   socket.on('video-call-answer', (data) => {
-    console.log('Server: Video call answer received for room:', data.chatId);
-    console.log('Server: Answer has SDP:', data.answer ? 'Yes' : 'No');
-    
-    const room = io.sockets.adapter.rooms.get(data.chatId);
-    console.log(`Room ${data.chatId} has ${room ? room.size : 0} users for answer broadcast`);
-    
-    socket.to(data.chatId).emit('video-call-answer', data);
-    console.log('Server: Answer broadcasted to room');
+    try {
+      socket.to(data.chatId).emit('video-call-answer', data);
+    } catch (error) {
+      console.error('Error handling video call answer:', error);
+      socket.emit('error', { message: 'Failed to process video call answer' });
+    }
   });
 
   socket.on('ice-candidate', (data) => {
-    console.log('Server: ICE candidate received for room:', data.chatId);
-    console.log('Server: ICE candidate present:', data.candidate ? 'Yes' : 'No');
-    
-    const room = io.sockets.adapter.rooms.get(data.chatId);
-    console.log(`Room ${data.chatId} has ${room ? room.size : 0} users for ICE broadcast`);
-    
-    socket.to(data.chatId).emit('ice-candidate', data);
-    console.log('Server: ICE candidate broadcasted to room');
+    try {
+      socket.to(data.chatId).emit('ice-candidate', data);
+    } catch (error) {
+      console.error('Error handling ICE candidate:', error);
+      socket.emit('error', { message: 'Failed to process ICE candidate' });
+    }
   });
 
+  // Handle disconnection
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
   });
 });
 
+// Root endpoint
 app.get('/', (req, res) => {
-  res.json({ message: 'TimeBank API is running!' });
+  res.json({ 
+    status: 'success',
+    message: 'TimeBank API is running!',
+    timestamp: new Date().toISOString(),
+    environment: config.env,
+    nodeVersion: process.version
+  });
 });
 
-const PORT = process.env.PORT || 5000; // Use environment port or 5000 as fallback
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION! Shutting down...');
+  console.error(err.name, err.message);
+  server.close(() => {
+    process.exit(1);
+  });
+});
 
-// Connect to MongoDB
-const connectDB = async () => {
+// Start server
+const startServer = async () => {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/timebank';
-    console.log('Attempting to connect to MongoDB at:', mongoUri);
+    await connectDB();
     
-    const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 10s
-      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-      family: 4 // Use IPv4, skip trying IPv6
+    server.listen(config.port, () => {
+      console.log(`Server running in ${config.env} mode on port ${config.port}`);
     });
-    
-    console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error.message);
-    console.error('Make sure MongoDB is running and the connection string is correct.');
+    console.error('Failed to start server:', error);
     process.exit(1);
   }
 };
 
-// Start server only if not in test environment
+// Start the server if not in test environment
 if (process.env.NODE_ENV !== 'test') {
-  connectDB().then(() => {
-    server.listen(PORT, () => {
-      console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-    });
-  });
+  startServer();
 }
 
 export { app, server, io }; // Export for testing

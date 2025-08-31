@@ -65,4 +65,4 @@ router.post('/create', auth, async (req, res) => {
   }
 });
 
-export { router };
+export default router;
