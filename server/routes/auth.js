@@ -405,4 +405,4 @@ router.get('/me', auth, async (req, res) => {
   });
 });
 
-export { router };
+export default router;

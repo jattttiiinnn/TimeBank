@@ -273,4 +273,4 @@ router.get('/admin/all', auth, async (req, res) => {
   }
 });
 
-export { router };
+export default router;
