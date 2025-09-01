@@ -14,14 +14,14 @@ import errorHandler from './middleware/errorHandler.js';
 import apiLimiter from './middleware/rateLimiter.js';
 
 // Routes
-import authRoutes from './routes/auth.js';
-import userRoutes from './routes/users.js';
-import sessionRoutes from './routes/sessions.js';
-import chatRoutes from './routes/chat.js';
-import healthRoutes from './routes/health.js';
+import authRoutes from '../server/routes/auth.js';
+import userRoutes from '../server/routes/users.js';
+import sessionRoutes from '../server/routes/sessions.js';
+import chatRoutes from '../server/routes/chat.js';
+import healthRoutes from '../server/routes/health.js';
 
 // Models
-import Chat from './models/Chat.js';
+import Chat from '../server/models/Chat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -60,16 +60,8 @@ app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 // Rate limiting
 app.use('/api/', apiLimiter);
 
-// Test endpoint
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'success',
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-    environment: config.env,
-    nodeVersion: process.version
-  });
-});
+// Health routes
+app.use('/api', healthRoutes);
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -124,9 +116,8 @@ io.on('connection', (socket) => {
       await chat.populate('messages.senderId', 'name');
       const newMessage = chat.messages[chat.messages.length - 1];
       
-      // Emit to chat room and also globally for notifications
+      // Emit to chat room only to avoid notifying unrelated users
       io.to(chatId).emit('new-message', newMessage);
-      socket.broadcast.emit('new-message', { ...newMessage, chatId });
     } catch (error) {
       console.error('Error sending message:', error);
       socket.emit('error', { message: error.message || 'Failed to send message' });

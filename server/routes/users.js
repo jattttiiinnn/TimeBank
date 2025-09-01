@@ -92,8 +92,8 @@ router.get('/providers', auth, async (req, res) => {
   }
 });
 
-// Admin: Get all users (unlimited)
-router.get('/users/admin/all', auth, async (req, res) => {
+// Admin: Get all users (unlimited) - normalized under /api/users/admin/all
+router.get('/admin/all', auth, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.email !== 'jatinbargujjar123@gmail.com') {
@@ -156,8 +156,8 @@ router.get('/debug/users-with-skills', auth, async (req, res) => {
   }
 });
 
-// Admin: Get comprehensive statistics
-router.get('/users/admin/stats', auth, async (req, res) => {
+// Admin: Get comprehensive statistics - normalized under /api/users/admin/stats
+router.get('/admin/stats', auth, async (req, res) => {
   try {
     // Check if user is admin
     if (req.user.email !== 'jatinbargujjar123@gmail.com') {
