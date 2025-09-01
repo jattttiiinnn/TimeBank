@@ -9,6 +9,18 @@ const router = express.Router();
 router.post('/create', auth, async (req, res) => {
   try {
     const { skillName, description, dateTime, duration, providerId, meetLink } = req.body;
+    if (!skillName || typeof skillName !== 'string' || !skillName.trim()) {
+      return res.status(400).json({ message: 'skillName is required' });
+    }
+    if (!dateTime || isNaN(new Date(dateTime).getTime())) {
+      return res.status(400).json({ message: 'Valid dateTime is required' });
+    }
+    if (!duration || typeof duration !== 'number' || duration <= 0) {
+      return res.status(400).json({ message: 'Positive duration is required' });
+    }
+    if (!providerId) {
+      return res.status(400).json({ message: 'providerId is required' });
+    }
     
     // Check if provider exists and has enough time balance if they're the requester
     const provider = await User.findById(providerId);

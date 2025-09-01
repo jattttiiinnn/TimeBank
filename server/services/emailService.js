@@ -2,15 +2,19 @@ import nodemailer from 'nodemailer';
 
 class EmailService {
   constructor() {
-    // Create transporter using Gmail SMTP
-    // For production, consider using dedicated email services like SendGrid, Mailgun, etc.
-    this.transporter = nodemailer.createTransport({
-      service: 'gmail', // Use Gmail service for better compatibility
-      auth: {
-        user: process.env.EMAIL_USER, // Your Gmail address
-        pass: process.env.EMAIL_PASS, // Your Gmail App Password (not regular password)
-      }
-    });
+    // Create transporter using SMTP if creds exist, otherwise a stub transport to avoid crashes
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      this.transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        }
+      });
+    } else {
+      // Fallback: JSON transport logs emails instead of sending
+      this.transporter = nodemailer.createTransport({ jsonTransport: true });
+    }
   }
 
   // Generate 6-digit OTP
@@ -83,7 +87,7 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log('OTP email sent successfully to:', email);
+      console.log('OTP email processed (sent or logged) to:', email);
       return true;
     } catch (error) {
       console.error('Error sending OTP email:', error);
@@ -159,7 +163,7 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log('Password reset email sent successfully to:', email);
+      console.log('Password reset email processed (sent or logged) to:', email);
       return true;
     } catch (error) {
       console.error('Error sending password reset email:', error);
@@ -248,7 +252,7 @@ class EmailService {
 
     try {
       await this.transporter.sendMail(mailOptions);
-      console.log('Welcome email sent successfully to:', email);
+      console.log('Welcome email processed (sent or logged) to:', email);
       return true;
     } catch (error) {
       console.error('Error sending welcome email:', error);

@@ -280,6 +280,9 @@ router.post('/google', async (req, res) => {
 router.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ message: 'Valid email is required' });
+    }
 
     // Find user by email
     const user = await User.findOne({ email });
@@ -326,6 +329,9 @@ router.post('/forgot-password', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters' });
+    }
 
     if (!token || !newPassword) {
       return res.status(400).json({ message: 'Token and new password are required' });
