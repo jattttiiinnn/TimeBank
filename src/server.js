@@ -29,23 +29,66 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
-// CORS Configuration
-app.use(cors({
-  origin: config.cors.allowedOrigins,
+// Enhanced CORS Configuration
+const allowedOrigins = [
+  'https://timebank-e67e2.web.app',
+  'https://www.timebank-e67e2.web.app',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, postman)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = `CORS policy: ${origin} not allowed`;
+      console.warn(msg);
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   credentials: true,
-  maxAge: 86400
-}));
+  maxAge: 86400,
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+};
+
+// Enable CORS with options
+app.use(cors(corsOptions));
 
 // Handle preflight requests
-app.options('*', cors());
+app.options('*', cors(corsOptions));
 
-// Socket.IO Configuration
+// Log CORS errors
+app.use((err, req, res, next) => {
+  if (err) {
+    console.error('CORS Error:', err.message);
+    if (err.status === 403) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Not allowed by CORS',
+        allowedOrigins: allowedOrigins
+      });
+    }
+  }
+  next();
+});
+
+// Socket.IO Configuration with matching CORS settings
 const io = new Server(server, {
   cors: {
-    origin: config.cors.allowedOrigins,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    origin: function(origin, callback) {
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     credentials: true
   },
   pingTimeout: 10000,

@@ -32,11 +32,11 @@ export default {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   },
   cors: {
-    allowedOrigins: process.env.NODE_ENV === 'production'
-      ? [
-          'https://timebank-e67e2.web.app',
-          'https://www.timebank-e67e2.web.app',
-        ]
-      : '*',
+    allowedOrigins: [
+      'https://timebank-e67e2.web.app',
+      'https://www.timebank-e67e2.web.app',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
+    ],
   },
 };
