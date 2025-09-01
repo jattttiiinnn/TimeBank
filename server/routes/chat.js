@@ -44,6 +44,12 @@ router.get('/:chatId', auth, async (req, res) => {
 router.post('/create', auth, async (req, res) => {
   try {
     const { participantId, sessionId } = req.body;
+    if (!participantId) {
+      return res.status(400).json({ message: 'participantId is required' });
+    }
+    if (participantId === String(req.user._id)) {
+      return res.status(400).json({ message: 'Cannot create chat with yourself' });
+    }
     
     // Check if chat already exists
     let chat = await Chat.findOne({
