@@ -1,26 +1,20 @@
 import axios, { type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 
-// Production API URL
-const PRODUCTION_API_URL = 'https://timebank-backend.onrender.com';
+// Development API URL
+const DEV_API_URL = 'http://localhost:5000';
 
 // Get API URL based on environment
 const getApiBaseUrl = (): string => {
-  // Prefer explicit env var if provided (works for prod builds tested locally)
-  const envUrl = import.meta.env.VITE_API_URL as string | undefined;
-  if (envUrl && envUrl.trim().length > 0) {
-    const trimmed = envUrl.trim();
-    return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
+  // Always use localhost for development
+  if (import.meta.env.DEV) {
+    console.log('Running in development mode with local API server');
+    return DEV_API_URL;
   }
 
-  // If no env var, use production URL only when actually building for prod
-  if (import.meta.env.PROD) {
-    console.log('Running in production mode with default production API URL');
-    return PRODUCTION_API_URL;
-  }
-
-  // Fallback for dev
-  console.warn('VITE_API_URL is not set, falling back to http://localhost:5000');
-  return 'http://localhost:5000';
+  // For production, use the environment variable or default to localhost
+  const envUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+  const trimmed = envUrl.trim();
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 };
 
 // Export API URLs
