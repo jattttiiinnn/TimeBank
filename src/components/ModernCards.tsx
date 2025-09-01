@@ -4,6 +4,7 @@ import {
   Heart, 
   MessageCircle, 
   Share2, 
+  Bell,
   BookOpen, 
   Clock, 
   Star,

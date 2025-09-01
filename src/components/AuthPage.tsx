@@ -72,7 +72,6 @@ export default function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     setError('');
-    setError('');
     setLoading(true);
     try {
       console.log('🚀 Google sign-in button clicked');
@@ -102,6 +101,7 @@ export default function AuthPage() {
     } finally {
       setLoading(false);
     }
+  };
 
   // COMMENTED OUT OTP: const handleOTPVerificationSuccess = () => {
   //   // Redirect will be handled by the AuthContext
@@ -447,5 +447,4 @@ export default function AuthPage() {
       </div> 
     </div> 
   );
-}
 }

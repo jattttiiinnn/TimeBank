@@ -22,7 +22,7 @@ interface Chat {
 interface ChatWindowProps {
   chat: Chat;
   currentUserId?: string;
-  // onChatUpdate: () => void; // Removed unused prop
+  onChatUpdate?: () => Promise<void> | void;
 }
 
 export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
