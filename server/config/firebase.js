@@ -1,29 +1,46 @@
 import admin from 'firebase-admin';
 
+let adminInitialized = false;
+
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
-  // For production, you'll need to set FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY as environment variable
-  // For development, you can use the project ID directly
-  const firebaseConfig = {
-    projectId: 'timebank-e67e2',
-  };
-
-  // Try to initialize with service account if available, otherwise use project ID only
   try {
-    if (process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY);
+    const envKey = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_KEY;
+
+    if (envKey) {
+      // Support both JSON string and base64-encoded JSON
+      let jsonString = envKey.trim();
+      if (!jsonString.startsWith('{')) {
+        try { jsonString = Buffer.from(jsonString, 'base64').toString('utf8'); } catch {}
+      }
+
+      const parsed = JSON.parse(jsonString);
+      // Fix common Windows newline escaping in private_key
+      if (parsed.private_key && typeof parsed.private_key === 'string') {
+        parsed.private_key = parsed.private_key.replace(/\\n/g, '\n');
+      }
+
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        projectId: 'timebank-e67e2'
+        credential: admin.credential.cert(parsed),
+        projectId: parsed.project_id || 'timebank-e67e2',
       });
+      adminInitialized = true;
+      console.log('Firebase Admin initialized using service account');
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      // Use ADC if a credentials file path is provided
+      admin.initializeApp({
+        credential: admin.credential.applicationDefault(),
+      });
+      adminInitialized = true;
+      console.log('Firebase Admin initialized using application default credentials');
     } else {
-      // For development - Firebase Admin will use default credentials
-      admin.initializeApp(firebaseConfig);
+      // No credentials; skip admin. Google auth endpoint should handle this gracefully.
+      console.warn('Firebase Admin not configured. GOOGLE auth endpoint will be disabled.');
     }
-    console.log('Firebase Admin initialized successfully');
   } catch (error) {
     console.error('Firebase Admin initialization error:', error);
   }
 }
 
+export { adminInitialized };
 export default admin;

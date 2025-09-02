@@ -94,18 +94,29 @@ messageSchema.virtual('senderDetails', {
 });
 
 // Middleware to update chat's last message when a new message is saved
-messageSchema.post('save', async function(doc) {
-  const Chat = mongoose.model('Chat');
-  
-  await Chat.findByIdAndUpdate(doc.chatId, {
-    lastMessage: {
-      content: doc.content,
-      sender: doc.sender,
-      timestamp: doc.createdAt,
-      readBy: doc.readBy
-    },
-    updatedAt: new Date()
-  });
+messageSchema.post('save', async function (doc) {
+  try {
+    // Access model via registry to avoid import cycles
+    const ChatModel = mongoose.models.Chat || mongoose.model('Chat');
+
+    await ChatModel.findByIdAndUpdate(
+      doc.chatId,
+      {
+        $set: {
+          lastMessage: {
+            content: doc.content,
+            sender: doc.sender,
+            timestamp: doc.createdAt,
+            readBy: doc.readBy,
+          },
+        },
+      },
+      { new: false }
+    );
+  } catch (err) {
+    // Log but don't block message save
+    console.error('Failed to update Chat.lastMessage after Message save:', (err as Error).message);
+  }
 });
 
 const Message: Model<IMessage> = mongoose.models.Message || mongoose.model<IMessage>('Message', messageSchema);

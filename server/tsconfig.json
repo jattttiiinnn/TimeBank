@@ -3,20 +3,20 @@
     "target": "es2018",
     "module": "ESNext",
     "outDir": "./dist",
-    "rootDir": "../src",
+    "rootDir": "./",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "allowSyntheticDefaultImports": true,
+    "allowJs": true,
     "typeRoots": [
-      "./node_modules/@types",
-      "../node_modules/@types"
+      "./node_modules/@types"
     ],
     "types": ["node", "express"],
     "noEmit": true
   },
-  "include": ["../src/server.js", "../src/**/*.js"],
-  "exclude": ["node_modules", "../node_modules"]
+  "include": ["**/*.js", "**/*.ts"],
+  "exclude": ["node_modules", "../node_modules", "dist"]
 }

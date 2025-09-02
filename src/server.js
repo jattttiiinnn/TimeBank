@@ -33,8 +33,14 @@ const server = http.createServer(app);
 const allowedOrigins = [
   'https://timebank-e67e2.web.app',
   'https://www.timebank-e67e2.web.app',
+  // React dev servers
   'http://localhost:3000',
-  'http://127.0.0.1:3000'
+  'http://127.0.0.1:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  // Backend direct access
+  'http://localhost:5000',
+  'http://127.0.0.1:5000'
 ];
 
 const corsOptions = {
@@ -99,6 +105,9 @@ const io = new Server(server, {
 // Middleware
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Serve static files from the built frontend
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // Rate limiting
 app.use('/api/', apiLimiter);
@@ -255,15 +264,14 @@ io.on('connection', (socket) => {
   });
 });
 
-// Root endpoint
+// Root endpoint - serve the React app
 app.get('/', (req, res) => {
-  res.json({ 
-    status: 'success',
-    message: 'TimeBank API is running!',
-    timestamp: new Date().toISOString(),
-    environment: config.env,
-    nodeVersion: process.version
-  });
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
+
+// Catch all other routes and return the React app (for client-side routing)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 // Handle unhandled promise rejections

@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:server": "nodemon src/server.js",
+    "dev:server": "nodemon server/server.js",
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
@@ -32,6 +32,7 @@
     "date-fns": "^4.1.0",
     "dotenv": "^16.4.1",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.0.1",
     "firebase": "^12.1.0",
     "firebase-admin": "^13.4.0",
     "framer-motion": "^12.23.12",

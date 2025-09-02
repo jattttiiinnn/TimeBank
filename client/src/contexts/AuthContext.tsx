@@ -27,18 +27,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Check if user is admin
+
+  // Force token refresh after admin claim change
   const checkAdminStatus = useCallback(async (user: User | null): Promise<boolean> => {
     if (!user) {
       setIsAdmin(false);
       return false;
     }
-
     try {
+      // Always force refresh to get latest claims
       const idTokenResult = await getIdTokenResult(user, true);
       const isAdmin = !!idTokenResult.claims.admin;
       setIsAdmin(isAdmin);
       return isAdmin;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error checking admin status:', error);
       setIsAdmin(false);
       return false;
@@ -49,7 +52,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
-      
       if (user) {
         // Check admin status when user logs in
         await checkAdminStatus(user);
@@ -93,7 +95,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const idToken = await user.getIdToken();
       // Call your backend API to sync user data
-      await fetch(`${import.meta.env.VITE_API_URL}/api/users/sync`, {
+  const apiUrl = (import.meta as any).env.VITE_API_URL;
+  await fetch(`${apiUrl}/api/users/sync`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

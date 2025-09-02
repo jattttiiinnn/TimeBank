@@ -80,7 +80,20 @@ userSchema.pre('save', async function(next) {
 });
 
 userSchema.methods.comparePassword = async function(candidatePassword) {
-  return bcrypt.compare(candidatePassword, this.password);
+  try {
+    // Missing or non-string password → treat as non-match
+    if (!this.password || typeof this.password !== 'string') return false;
+
+    // If the stored password doesn't look like a bcrypt hash, fail safely
+    const hash = this.password;
+    const looksLikeBcrypt = hash.startsWith('$2a$') || hash.startsWith('$2b$') || hash.startsWith('$2y$');
+    if (!looksLikeBcrypt) return false;
+
+    return await bcrypt.compare(candidatePassword, hash);
+  } catch (e) {
+    // Any bcrypt error → treat as non-match
+    return false;
+  }
 };
 
 export default mongoose.model('User', userSchema);

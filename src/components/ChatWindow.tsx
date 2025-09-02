@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, Video, MoreVertical, X, Phone, MessageSquare } from 'lucide-react';
-import toast from 'react-hot-toast';
-import VideoCall from './EnhancedVideoCall';
-import { io } from 'socket.io-client';
+import React, { useState, useEffect } from "react";
+import { Send, Video, MoreVertical, X, Phone, MessageSquare } from "lucide-react";
+import toast from "react-hot-toast";
+import VideoCall from "./EnhancedVideoCall";
+import { io } from "socket.io-client";
 
 interface Message {
   _id: string;
@@ -26,71 +26,71 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>(chat.messages);
   const [showVideoCall, setShowVideoCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState(false);
-  const [callInitiator, setCallInitiator] = useState<string>('');
+  const [callInitiator, setCallInitiator] = useState<string>("");
   const [socket, setSocket] = useState<any>(null);
   const [socketConnected, setSocketConnected] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const otherParticipant = chat.participants.find(p => p._id !== currentUserId);
+  const otherParticipant = chat.participants.find((p) => p._id !== currentUserId);
 
   // Socket connection and event handling
   useEffect(() => {
-    console.log('ChatWindow: Initializing socket for chat:', chat._id);
-    
+    console.log("ChatWindow: Initializing socket for chat:", chat._id);
+
     // Create socket connection with reconnection options
     const newSocket = io(import.meta.env.VITE_API_URL, {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      timeout: 20000
+      timeout: 20000,
     });
 
     // Connection established
     const onConnect = () => {
-      console.log('ChatWindow: Socket connected successfully');
+      console.log("ChatWindow: Socket connected successfully");
       setSocketConnected(true);
-      
+
       // Rejoin chat room on reconnect
-      newSocket.emit('join-chat', chat._id);
-      console.log('ChatWindow: Rejoined chat room after reconnection:', chat._id);
+      newSocket.emit("join-chat", chat._id);
+      console.log("ChatWindow: Rejoined chat room after reconnection:", chat._id);
     };
 
     // Connection lost
     const onDisconnect = (reason: string) => {
-      console.log('ChatWindow: Socket disconnected. Reason:', reason);
+      console.log("ChatWindow: Socket disconnected. Reason:", reason);
       setSocketConnected(false);
-      
+
       // Attempt to reconnect if not explicitly disconnected
-      if (reason !== 'io client disconnect') {
-        console.log('ChatWindow: Attempting to reconnect...');
+      if (reason !== "io client disconnect") {
+        console.log("ChatWindow: Attempting to reconnect...");
       }
     };
 
     // Handle connection errors
     const onConnectError = (error: Error) => {
-      console.error('ChatWindow: Socket connection error:', error);
+      console.error("ChatWindow: Socket connection error:", error);
       setSocketConnected(false);
     };
 
     // Set up event listeners
-    newSocket.on('connect', onConnect);
-    newSocket.on('disconnect', onDisconnect);
-    newSocket.on('connect_error', onConnectError);
+    newSocket.on("connect", onConnect);
+    newSocket.on("disconnect", onDisconnect);
+    newSocket.on("connect_error", onConnectError);
 
     // Join chat room
-    newSocket.emit('join-chat', chat._id);
-    console.log('ChatWindow: Joined chat room:', chat._id);
+    newSocket.emit("join-chat", chat._id);
+    console.log("ChatWindow: Joined chat room:", chat._id);
 
     // Message handling
     const onNewMessage = (newMessage: Message) => {
-      console.log('ChatWindow: Received new message:', newMessage);
-      setMessages(prev => [...prev, newMessage]);
-      
+      console.log("ChatWindow: Received new message:", newMessage);
+      setMessages((prev) => [...prev, newMessage]);
+
       // Show notification for messages from other users
       if (newMessage.senderId._id !== currentUserId) {
         toast(
@@ -118,13 +118,13 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
 
     // Video call handling
     const onIncomingVideoCall = (data: any) => {
-      console.log('ChatWindow: Incoming video call received:', data);
-      
+      console.log("ChatWindow: Incoming video call received:", data);
+
       if (data.from !== currentUserId) {
-        console.log('ChatWindow: Showing incoming call modal');
+        console.log("ChatWindow: Showing incoming call modal");
         setIncomingCall(true);
         setCallInitiator(data.from);
-        
+
         // Show incoming call notification
         toast(
           (t) => (
@@ -147,63 +147,63 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
           }
         );
       } else {
-        console.log('ChatWindow: Ignoring call from self');
+        console.log("ChatWindow: Ignoring call from self");
       }
     };
 
     const onCallAccepted = () => {
-      console.log('ChatWindow: Call accepted, starting video call');
+      console.log("ChatWindow: Call accepted, starting video call");
       toast.success(`📹 Call connected with ${otherParticipant?.name}`, {
         duration: 3000,
-        icon: '✅',
+        icon: "✅",
       });
       setShowVideoCall(true);
       setIncomingCall(false);
     };
 
     const onCallRejected = () => {
-      console.log('ChatWindow: Call rejected');
+      console.log("ChatWindow: Call rejected");
       toast.error(`📞 Call declined by ${otherParticipant?.name}`, {
         duration: 3000,
-        icon: '❌',
+        icon: "❌",
       });
       setIncomingCall(false);
     };
 
     const onCallEnded = () => {
-      console.log('ChatWindow: Call ended');
-      toast.success('📞 Call ended', {
+      console.log("ChatWindow: Call ended");
+      toast.success("📞 Call ended", {
         duration: 2000,
-        icon: '📴',
+        icon: "📴",
       });
       setShowVideoCall(false);
       setIncomingCall(false);
     };
 
     // Set up message and call event listeners
-    newSocket.on('new-message', onNewMessage);
-    newSocket.on('incoming-video-call', onIncomingVideoCall);
-    newSocket.on('call-accepted', onCallAccepted);
-    newSocket.on('call-rejected', onCallRejected);
-    newSocket.on('call-ended', onCallEnded);
+    newSocket.on("new-message", onNewMessage);
+    newSocket.on("incoming-video-call", onIncomingVideoCall);
+    newSocket.on("call-accepted", onCallAccepted);
+    newSocket.on("call-rejected", onCallRejected);
+    newSocket.on("call-ended", onCallEnded);
 
     // Set the socket in state
     setSocket(newSocket);
 
     // Cleanup function
     const cleanup = () => {
-      console.log('ChatWindow: Cleaning up socket connection');
-      
+      console.log("ChatWindow: Cleaning up socket connection");
+
       // Remove all event listeners
-      newSocket.off('connect', onConnect);
-      newSocket.off('disconnect', onDisconnect);
-      newSocket.off('connect_error', onConnectError);
-      newSocket.off('new-message', onNewMessage);
-      newSocket.off('incoming-video-call', onIncomingVideoCall);
-      newSocket.off('call-accepted', onCallAccepted);
-      newSocket.off('call-rejected', onCallRejected);
-      newSocket.off('call-ended', onCallEnded);
-      
+      newSocket.off("connect", onConnect);
+      newSocket.off("disconnect", onDisconnect);
+      newSocket.off("connect_error", onConnectError);
+      newSocket.off("new-message", onNewMessage);
+      newSocket.off("incoming-video-call", onIncomingVideoCall);
+      newSocket.off("call-accepted", onCallAccepted);
+      newSocket.off("call-rejected", onCallRejected);
+      newSocket.off("call-ended", onCallEnded);
+
       // Disconnect the socket
       if (newSocket.connected) {
         newSocket.disconnect();
@@ -222,104 +222,104 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
   }, [messages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
   const sendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || !socket) return;
 
-    console.log('ChatWindow: Sending message:', message.trim());
-    socket.emit('send-message', {
+    console.log("ChatWindow: Sending message:", message.trim());
+    socket.emit("send-message", {
       chatId: chat._id,
       senderId: currentUserId,
-      content: message.trim()
+      content: message.trim(),
     });
 
-    setMessage('');
+    setMessage("");
   };
 
   const startVideoCall = () => {
-    console.log('ChatWindow: Video call button clicked');
-    console.log('ChatWindow: Socket connected?', socketConnected);
-    console.log('ChatWindow: Socket object:', socket);
-    console.log('ChatWindow: Current user ID:', currentUserId);
-    console.log('ChatWindow: Other participant:', otherParticipant);
-    
+    console.log("ChatWindow: Video call button clicked");
+    console.log("ChatWindow: Socket connected?", socketConnected);
+    console.log("ChatWindow: Socket object:", socket);
+    console.log("ChatWindow: Current user ID:", currentUserId);
+    console.log("ChatWindow: Other participant:", otherParticipant);
+
     if (!socket) {
-      console.error('ChatWindow: Socket not available');
-      alert('Connection not available. Please refresh the page.');
+      console.error("ChatWindow: Socket not available");
+      alert("Connection not available. Please refresh the page.");
       return;
     }
-    
+
     if (!socketConnected) {
-      console.error('ChatWindow: Socket not connected');
-      alert('Not connected to server. Please check your connection.');
+      console.error("ChatWindow: Socket not connected");
+      alert("Not connected to server. Please check your connection.");
       return;
     }
-    
+
     if (!otherParticipant) {
-      console.error('ChatWindow: No other participant found');
-      alert('Cannot find other participant');
+      console.error("ChatWindow: No other participant found");
+      alert("Cannot find other participant");
       return;
     }
-    
-    console.log('ChatWindow: Emitting initiate-video-call event');
+
+    console.log("ChatWindow: Emitting initiate-video-call event");
     try {
-      socket.emit('initiate-video-call', {
+      socket.emit("initiate-video-call", {
         chatId: chat._id,
         from: currentUserId,
         to: otherParticipant._id,
-        fromName: 'You'
+        fromName: "You",
       });
-      console.log('ChatWindow: Video call request sent successfully');
+      console.log("ChatWindow: Video call request sent successfully");
       // Open the call UI immediately for the caller and mark as initiator
-      setCallInitiator(currentUserId || '');
+      setCallInitiator(currentUserId || "");
       setShowVideoCall(true);
     } catch (error) {
-      console.error('ChatWindow: Error sending video call request:', error);
-      alert('Failed to initiate video call');
+      console.error("ChatWindow: Error sending video call request:", error);
+      alert("Failed to initiate video call");
     }
   };
 
   const acceptCall = () => {
-    console.log('ChatWindow: Accepting call');
+    console.log("ChatWindow: Accepting call");
     if (socket) {
-      console.log('Emitting accept-video-call with data:', {
+      console.log("Emitting accept-video-call with data:", {
         chatId: chat._id,
-        to: callInitiator
+        to: callInitiator,
       });
-      socket.emit('accept-video-call', {
+      socket.emit("accept-video-call", {
         chatId: chat._id,
-        to: callInitiator
+        to: callInitiator,
       });
-      
+
       // Also join the room if not already joined
-      socket.emit('join-chat', chat._id);
+      socket.emit("join-chat", chat._id);
     }
     setIncomingCall(false);
     setShowVideoCall(true);
   };
 
   const rejectCall = () => {
-    console.log('ChatWindow: Rejecting call');
+    console.log("ChatWindow: Rejecting call");
     if (socket) {
-      console.log('Emitting reject-video-call with data:', {
+      console.log("Emitting reject-video-call with data:", {
         chatId: chat._id,
-        to: callInitiator
+        to: callInitiator,
       });
-      socket.emit('reject-video-call', {
+      socket.emit("reject-video-call", {
         chatId: chat._id,
-        to: callInitiator
+        to: callInitiator,
       });
     }
     setIncomingCall(false);
   };
 
   const formatTime = (timestamp: string) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return new Date(timestamp).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -332,9 +332,9 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
         onClose={() => {
           setShowVideoCall(false);
           if (socket) {
-            socket.emit('end-video-call', {
+            socket.emit("end-video-call", {
               chatId: chat._id,
-              to: otherParticipant?._id
+              to: otherParticipant?._id,
             });
           }
         }}
@@ -399,7 +399,7 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
               )}
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             <button
               onClick={startVideoCall}
@@ -408,10 +408,10 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
             >
               <Video className="h-5 w-5" />
             </button>
-            <button 
+            <button
               onClick={() => {
-                console.log('ChatWindow: Menu button clicked');
-                alert('Menu functionality coming soon!');
+                console.log("ChatWindow: Menu button clicked");
+                alert("Menu functionality coming soon!");
               }}
               className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors flex items-center justify-center"
               title="More options"
@@ -420,12 +420,12 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
             </button>
           </div>
         </div>
-        
+
         {/* Debug Info */}
         <div className="px-4 py-2 bg-gray-100 text-xs text-gray-600">
-          Socket: {socketConnected ? '✅ Connected' : '❌ Disconnected'} | 
-          Chat: {chat._id.slice(-6)} | 
-          User: {currentUserId?.slice(-6)} | 
+          Socket: {socketConnected ? "✅ Connected" : "❌ Disconnected"} |
+          Chat: {chat._id.slice(-6)} |
+          User: {currentUserId?.slice(-6)} |
           Other: {otherParticipant?.name}
         </div>
       </div>
@@ -435,19 +435,23 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
         {messages.map((msg) => (
           <div
             key={msg._id}
-            className={`flex ${msg.senderId._id === currentUserId ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${
+              msg.senderId._id === currentUserId ? "justify-end" : "justify-start"
+            }`}
           >
             <div
               className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                 msg.senderId._id === currentUserId
-                  ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-800'
+                  ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white"
+                  : "bg-gray-200 text-gray-800"
               }`}
             >
               <div className="text-sm">{msg.content}</div>
               <div
                 className={`text-xs mt-1 ${
-                  msg.senderId._id === currentUserId ? 'text-purple-100' : 'text-gray-500'
+                  msg.senderId._id === currentUserId
+                    ? "text-purple-100"
+                    : "text-gray-500"
                 }`}
               >
                 {formatTime(msg.timestamp)}
@@ -459,7 +463,10 @@ export default function ChatWindow({ chat, currentUserId }: ChatWindowProps) {
       </div>
 
       {/* Message Input */}
-      <form onSubmit={sendMessage} className="p-4 border-t border-gray-200 bg-white/50 flex-shrink-0">
+      <form
+        onSubmit={sendMessage}
+        className="p-4 border-t border-gray-200 bg-white/50 flex-shrink-0"
+      >
         <div className="flex space-x-2">
           <input
             type="text"
